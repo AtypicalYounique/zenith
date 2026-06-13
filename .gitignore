@@ -4,6 +4,9 @@
 # Vercel
 .vercel
 
+# Screenshot-loop output (regenerated each run; do not commit binary churn)
+shots/
+
 # Logs
 logs
 *.log

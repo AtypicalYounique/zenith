@@ -37,7 +37,7 @@ try {
 }
 
 // --- Gate 2: no em-dashes anywhere ---
-const dashes = (html.match(/—/g) || []).length;
+const dashes = (html.match(/\u2014/g) || []).length;
 if (dashes !== 0) fail(`found ${dashes} em-dash(es) (U+2014) in index.html; the project rule is zero`);
 console.log('  ok   style: zero em-dashes in index.html');
 
