@@ -1,0 +1,15 @@
+{
+  "name": "zenith",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zodiac's Zenith: single-file Three.js game. This package exists only for the headless test harness.",
+  "scripts": {
+    "test": "node test/gates.mjs && node test/harness.mjs",
+    "test:gates": "node test/gates.mjs",
+    "test:harness": "node test/harness.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0",
+    "three": "0.128.0"
+  }
+}
