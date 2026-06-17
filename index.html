@@ -108,6 +108,11 @@
     padding:.5rem 1.1rem;cursor:pointer;z-index:6;transition:opacity .25s;
     box-shadow:0 0 18px rgba(232,196,107,.18)}
   #ndChoices{display:flex;flex-direction:column;gap:.5rem;align-items:center;margin-top:.6rem}
+  #questTracker{position:fixed;right:1rem;bottom:20%;max-width:240px;text-align:right;z-index:6;
+    pointer-events:none;color:rgba(239,233,218,.82);font-size:.72rem;line-height:1.5;
+    text-shadow:0 1px 3px rgba(0,0,0,.75)}
+  #qtName{font-family:'Marcellus',serif;color:var(--gold);letter-spacing:.12em;font-size:.84rem;margin-bottom:.15rem}
+  #qtProg{color:var(--gold);margin-top:.2rem;letter-spacing:.06em}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(190,30,30,.55) 100%);
@@ -328,6 +333,11 @@
     <div class="loreBody" id="ndBody"></div>
     <div id="ndChoices"></div>
   </div>
+</div>
+<div id="questTracker" class="hidden">
+  <div id="qtName"></div>
+  <div id="qtObj"></div>
+  <div id="qtProg"></div>
 </div>
 <button id="pauseBtn" class="hidden" title="pause">❚❚</button>
 
@@ -1141,6 +1151,13 @@ const MARS_DIALOGUE={
     quest:{text:'War Shades creep toward the Landing. They never used to think. Now they march. Break three of their packs in the Proving Grounds, and we’ll talk about who taught them to.', choices:[
       {label:'I’ll break them.', accept:'firstBlood', end:true},
       {label:'Not yet.', goto:'hub'}
+    ]},
+    questActive:{text:'The packs still stand. Boldness isn’t a speech, sign. Go break them, then come back to me.', choices:[
+      {label:'On my way.', end:true},
+      {label:'What do they look like?', goto:'realm'}
+    ]},
+    questDone:{text:'Three packs broken. Good. They moved with one mind, and that means someone’s giving the orders. We’ll find who. Rest, then we go deeper.', choices:[
+      {label:'(Step back)', end:true}
     ]}
   }}
 };
@@ -1151,7 +1168,12 @@ function openDialog(npc){
   S.mode='dialogue'; hide('npcPrompt');
   document.getElementById('ndGlyph').textContent=npc.spec.glyph||'♂';
   document.getElementById('ndName').textContent=npc.spec.name;
-  renderDialogNode(def.start);
+  let start=def.start;
+  if(npc.spec.id==='enyo'){
+    const st=questState('firstBlood');
+    if(st==='done') start='questDone'; else if(st==='active') start='questActive';
+  }
+  renderDialogNode(start);
   show('npcDialog'); sfx.ui();
 }
 function renderDialogNode(id){
@@ -1171,13 +1193,50 @@ function handleChoice(c){
   closeDialog();
 }
 function dialogAccept(questId){
-  // Step 3 wires this to HEROES[S.hero].mars.quests and the quest tracker. For now, confirm in character.
-  toast('Enyo: Then go. Come back bloody.');
+  if(questState(questId)!=='done'){ setQuest(questId,'active'); }
+  const q=MARS_QUESTS[questId];
+  toast('Quest accepted: '+(q?q.name:questId));
 }
 function closeDialog(){
   hide('npcDialog');
   if(realm) realm.dialog=null;
   if(S.world==='mars') S.mode='play';
+}
+// ===== MARS: QUEST STATE =====
+// A simple state machine over HEROES[i].mars.quests (locked | offered | active |
+// done), persisted through saveHeroes(). MARS_QUESTS defines each quest's display
+// text and goal. The lower-right tracker shows the active quest and its progress.
+// Combat progress (questAddProgress) gets wired to real kills in step 5; the
+// per-session count lives in questProgress (state itself persists, the count does not).
+const MARS_QUESTS={
+  firstBlood:{ name:'The First Blood', giver:'enyo',
+    objective:'Break War Shade packs creeping toward the Landing.',
+    goal:3, unit:'Packs broken' }
+};
+let questProgress={};
+function heroMars(){ return HEROES[S.hero].mars; }
+function questState(id){ return (HEROES&&heroMars().quests[id])||'locked'; }
+function setQuest(id,state){ heroMars().quests[id]=state; saveHeroes(); updateQuestTracker(); }
+function questAddProgress(id,n=1){
+  if(questState(id)!=='active') return;
+  const q=MARS_QUESTS[id]; if(!q) return;
+  questProgress[id]=Math.min(q.goal,(questProgress[id]||0)+n);
+  if(questProgress[id]>=q.goal){ setQuest(id,'done'); toast(q.name+': complete'); }
+  updateQuestTracker();
+}
+function updateQuestTracker(){
+  const el=document.getElementById('questTracker'); if(!el) return;
+  let active=null;
+  if(S.world==='mars'&&HEROES){
+    const qs=heroMars().quests;
+    for(const id in MARS_QUESTS){ if(qs[id]==='active'){ active=id; break; } }
+  }
+  if(!active){ el.classList.add('hidden'); return; }
+  const q=MARS_QUESTS[active];
+  document.getElementById('qtName').textContent=q.name;
+  document.getElementById('qtObj').textContent=q.objective;
+  document.getElementById('qtProg').textContent=(q.unit||'Progress')+': '+(questProgress[active]||0)+' / '+q.goal;
+  el.classList.remove('hidden');
 }
 function buildMarsRealm(){
   clearScene();
@@ -6427,7 +6486,7 @@ document.getElementById('devBoss').onclick=()=>{audio(); sfx.ui(); startBoss();}
 function enterMars(){
   hide('menu');
   S.world='mars'; S.mode='intro';
-  camYaw=0; camPitch=0;
+  camYaw=0; camPitch=0; questProgress={};
   buildMarsRealm();
   // the realm has a real sky dome and moons far out; let the camera see that far
   camera.far=2200; camera.updateProjectionMatrix();
@@ -6437,7 +6496,7 @@ function enterMars(){
 function exitRealm(){
   S.world='wheel'; S.mode='menu'; realm=null; npcs=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
@@ -6452,7 +6511,7 @@ document.getElementById('riBegin').onclick=()=>{
   document.getElementById('hGlyph').textContent=L.glyph;
   document.getElementById('hName').textContent=L.sign;
   document.getElementById('hPlanet').textContent="The Wanderers' Road";
-  refreshSlots(); refreshPowerName(); updateHUD();
+  refreshSlots(); refreshPowerName(); updateHUD(); updateQuestTracker();
   toast('Walk. The stones remember.');
 };
 document.getElementById('lcOk').onclick=()=>{ sfx.ui(); hide('loreCard'); if(S.world==='mars') S.mode='play'; };

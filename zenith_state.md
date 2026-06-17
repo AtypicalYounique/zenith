@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 2 (dialogue system).
+2026-06-17, Mars World build track step 3 (quest system) + Enyo playtest fixes.
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -43,9 +43,25 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   intro: greeting -> hub with 4 choices -> lore branches that return -> a quest
   offer (firstBlood) with accept/decline. Verified in browser: 9 flow checks pass
   (open, branch, return, accept-closes-and-resumes, Escape-closes). Harness/gates pass.
-- Next: step 3, quest system (state machine on HEROES[i].mars.quests:
-  locked/offered/active/done; quest tracker UI lower-right; wire dialogAccept to
-  set firstBlood active and persist via saveHeroes; "The First Blood" as test case).
+- Playtest fixes (after step 2): (1) Enyo now visibly turns to face the player.
+  The npcTick rotation math was already correct (proven by probe); the figure was
+  symmetric so the turn was invisible and snapped. Added shortest-angle smoothing
+  and a clearly-fronted model. (2) buildEnyo rebuilt as a feminine silhouette
+  (flared gown/wide hips, cinched waist, narrow shoulders, circlet, long hair, face
+  on +z). (3) Enyo's dialogue glyph changed from the Mars sign to crossed swords.
+- Done: step 3, quest system. New `// ===== MARS: QUEST STATE =====` block:
+  MARS_QUESTS registry (firstBlood: name/objective/goal 3/unit), state helpers
+  heroMars/questState/setQuest (persists via saveHeroes), questAddProgress (the
+  hook step 5 calls on kills; flips to 'done' at goal), and updateQuestTracker.
+  A lower-right #questTracker shows the active quest name, objective, and "X / 3"
+  progress. dialogAccept now sets the quest active (was a placeholder toast).
+  openDialog picks Enyo's start node by state: locked->intro, active->questActive,
+  done->questDone (new nodes added). Tracker refreshes on riBegin/setQuest/progress
+  and hides on realm exit; questProgress (per-session count) resets on enterMars.
+  Verified in browser: 18 checks (accept->active->persist across reload->progress
+  ->done->persist; tracker show/hide; state-aware dialogue). Harness/gates pass.
+- Next: step 4, compass HUD (horizontal bar at top: cardinal direction, active
+  quest waypoint icon, nearby NPC icons).
 
 ## Where things stand
 
