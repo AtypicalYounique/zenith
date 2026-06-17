@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-13, first setup session.
+2026-06-16, Mars visual polish, pass 1 (lighting and tonal range).
 
 ## Where things stand
 
@@ -38,6 +38,25 @@ Section 6.) No em-dashes anywhere.
 - Clean first commit with the real game; pushed to GitHub.
 - Test harness + two gates committed; confirmed passing and confirmed it catches crashes.
 - Screenshot loop working; menu and gameplay captured and verified by eye.
+- Mars visual polish pass 1 (lighting and tonal range), all inside buildMarsRealm:
+  stronger low warm sun as key, lower flat ambient plus a dim cool fill for the
+  shadow side, widened ground albedo (darker hollows, brighter wind-bleached
+  crests), and a deeper baked light-to-shadow gradient. Terrain, rocks, and the
+  waymark stones now read with form instead of flat brown. Harness and both gates
+  passed. No global renderer or tone-mapping change (kept the edit Mars-only).
+
+## Mars polish backlog (ranked from the visual read, 2026-06-16)
+
+- Done: #1 lighting and tonal range.
+- #2: blowing dust renders as opaque square sprites; give it a soft round alpha
+  falloff, lower opacity, varied size, so it reads as haze not floating boxes.
+- #3: sky and moons. Note: camera far plane is 500, but the sky dome (r900),
+  sun disc, stars, and Phobos (dist 500) are at/beyond it, so they get clipped
+  and the upper sky is just the flat scene.background. Fixing the sky likely
+  needs the far plane raised or the dome/moons pulled inside 500. Also make the
+  moons read as lit bodies (currently dark Lambert blobs).
+- #4: rocks and waymark stones need their own material (value/hue separation
+  from the ground, base contact-shadow, carved look for the stones).
 
 ## Next (from CLAUDE.md roadmap)
 

@@ -1037,10 +1037,12 @@ function buildMarsRealm(){
   scene.fog=new THREE.FogExp2(0x6b3324,.0042);
   const g=new THREE.Group();
 
-  // lights of the red dusk
-  hemiLight=new THREE.HemisphereLight(0xb97a55,0x3a2018,.55); g.add(hemiLight);
-  const sun=new THREE.DirectionalLight(0xffd2a0,.85);
+  // lights of the red dusk: a low warm sun for the key, a dim cool fill for the shadow side
+  hemiLight=new THREE.HemisphereLight(0xa86a4a,0x281826,.34); g.add(hemiLight);
+  const sun=new THREE.DirectionalLight(0xffcf9a,1.35);
   sun.position.copy(MARS_SUN.clone().multiplyScalar(120)); g.add(sun);
+  const fill=new THREE.DirectionalLight(0x6a5080,.28);
+  fill.position.copy(MARS_SUN.clone().multiplyScalar(-100).setY(70)); g.add(fill);
 
   // terrain: one height function, vertex-colored, dusk shadows baked
   const SEG=140, SIZE=620;
@@ -1048,9 +1050,9 @@ function buildMarsRealm(){
   tg.rotateX(-Math.PI/2);
   const pos=tg.attributes.position, N=pos.count;
   const cols=new Float32Array(N*3);
-  const cLow=new THREE.Color(0x8a4226), cDust=new THREE.Color(0xb06a3f),
-        cRock=new THREE.Color(0x4a2a20), cHigh=new THREE.Color(0xd8c2ae),
-        cCold=new THREE.Color(0x3a2a38), _c=new THREE.Color();
+  const cLow=new THREE.Color(0x6e2f1c), cDust=new THREE.Color(0xc27741),
+        cRock=new THREE.Color(0x37201a), cHigh=new THREE.Color(0xe8d4b8),
+        cCold=new THREE.Color(0x322640), _c=new THREE.Color();
   for(let i=0;i<N;i++){
     const x=pos.getX(i), z=pos.getZ(i);
     const h=marsH(x,z);
@@ -1058,18 +1060,18 @@ function buildMarsRealm(){
     const e=.9;
     const sx=(marsH(x+e,z)-marsH(x-e,z))/(2*e), sz=(marsH(x,z+e)-marsH(x,z-e))/(2*e);
     const slope=Math.min(1,Math.hypot(sx,sz)*1.1);
-    _c.copy(cLow).lerp(cDust,Math.min(1,Math.max(0,_fbm(x*.05,z*.05,3)*1.6-.2)));
-    _c.lerp(cRock,slope*.85);
-    if(h>34) _c.lerp(cHigh,Math.min(1,(h-34)/26));
+    _c.copy(cLow).lerp(cDust,Math.min(1,Math.max(0,_fbm(x*.05,z*.05,3)*1.7-.25)));
+    _c.lerp(cRock,slope*.9);
+    if(h>24) _c.lerp(cHigh,Math.min(1,(h-24)/30));
     let lit=1, py=h+.7, px=x, pz=z;
     for(let s=0;s<16;s++){
       px+=MARS_SUN.x*5.5; py+=MARS_SUN.y*5.5; pz+=MARS_SUN.z*5.5;
       if(marsH(px,pz)>py){ lit=0; break; }
     }
-    if(!lit) _c.lerp(cCold,.62).multiplyScalar(.5);
+    if(!lit) _c.lerp(cCold,.68).multiplyScalar(.4);
     else {
-      const f=Math.max(.25,MARS_SUN.y+( -sx*MARS_SUN.x - sz*MARS_SUN.z )*.9+.55);
-      _c.multiplyScalar(Math.min(1.25,f));
+      const f=Math.max(.22,MARS_SUN.y+( -sx*MARS_SUN.x - sz*MARS_SUN.z )*1.3+.46);
+      _c.multiplyScalar(Math.min(1.45,f));
     }
     cols[i*3]=_c.r; cols[i*3+1]=_c.g; cols[i*3+2]=_c.b;
   }
