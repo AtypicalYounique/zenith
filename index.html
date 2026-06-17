@@ -102,6 +102,11 @@
   #toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);color:var(--gold);
     font-family:'Marcellus',serif;letter-spacing:.25em;text-transform:uppercase;font-size:.95rem;
     opacity:0;transition:opacity .4s;text-shadow:0 0 18px rgba(232,196,107,.6);z-index:6;pointer-events:none}
+  #npcPrompt{position:fixed;left:50%;bottom:24%;transform:translateX(-50%);color:var(--gold);
+    font-family:'Marcellus',serif;letter-spacing:.16em;font-size:.78rem;white-space:nowrap;
+    background:rgba(10,6,16,.6);border:1px solid rgba(232,196,107,.42);border-radius:999px;
+    padding:.5rem 1.1rem;cursor:pointer;z-index:6;transition:opacity .25s;
+    box-shadow:0 0 18px rgba(232,196,107,.18)}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(190,30,30,.55) 100%);
@@ -277,6 +282,7 @@
 <div id="flash"></div>
 <div id="slowTint"></div>
 <div id="toast"></div>
+<div id="npcPrompt" class="hidden"></div>
 
 <div id="menu" class="layer">
   <h1>Zodiac's Zenith</h1>
@@ -1003,7 +1009,7 @@ const MARS_LORE=[
  {t:'Phobos and Deimos',b:'The two moons crossing this sky are named Fear and Dread, the sons of Ares who drove his chariot into battle. When Asaph Hall found the real moons in 1877, the old names were waiting for them. Watch the lower one: the real Phobos circles Mars faster than Mars turns, the only moon in the solar system that outruns its own sky.'},
  {t:'The Gate of Return',b:'The mysteries of Mithras initiated their followers up a ladder of seven gates, one for each planet, shedding at each gate what it had given. The ascent is climbed the same way today: gate by gate, gift by gift. When you are ready to climb higher, the wheel waits below.'}
 ];
-let realm=null;
+let realm=null, npcs=[];
 function realmTick(dt,t){
   if(!realm||!player) return;
   realm.t+=dt;
@@ -1021,7 +1027,7 @@ function realmTick(dt,t){
     const d=Math.hypot(player.position.x-s.x,player.position.z-s.z);
     if(s.cool>0&&d>4){ s.cool=0; }
     if(d<3&&s.cool<=0&&S.mode==='play'){
-      s.cool=1; S.mode='lore';
+      s.cool=1; S.mode='lore'; hide('npcPrompt');
       const L=MARS_LORE[s.kind];
       document.getElementById('lcTitle').textContent=L.t;
       document.getElementById('lcBody').innerHTML=L.b;
@@ -1029,6 +1035,72 @@ function realmTick(dt,t){
       show('loreCard'); sfx.ui();
     }
   });
+  npcTick(dt);
+}
+// ===== MARS: NPC SYSTEM =====
+// An NPC is a positioned mesh group with a floating name label and an interaction
+// radius. When the player is in range during play, the NPC turns to face them and
+// a prompt appears; pressing E (desktop) or tapping the prompt (mobile) interacts.
+// Step 1 shows a greeting toast; the dialogue card arrives in step 2.
+function npcLabel(text){
+  const cv=document.createElement('canvas'); cv.width=256; cv.height=64;
+  const x=cv.getContext('2d');
+  x.font='600 30px Marcellus, serif'; x.textAlign='center'; x.textBaseline='middle';
+  x.shadowColor='rgba(0,0,0,.85)'; x.shadowBlur=8;
+  x.fillStyle='#e8c46b'; x.fillText(text,128,34);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false,fog:false}));
+  sp.scale.set(4.4,1.1,1);
+  return sp;
+}
+function buildEnyo(){
+  const G=new THREE.Group();
+  const cloth=M(0x6e1f1f,{roughness:.9}), iron=M(0x382a2e,{metalness:.45,roughness:.5});
+  const bronze=glow(0xb87333,.22,{metalness:.6,roughness:.4}), skin=M(0xcaa985);
+  [[-.16],[.16]].forEach(([x])=>{ const l=new THREE.Mesh(new THREE.CylinderGeometry(.13,.1,1.0,8),iron); l.position.set(x,.5,0); G.add(l); });
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.46,1.25,10),cloth); torso.position.y=1.5; G.add(torso);
+  [[-.42],[.42]].forEach(([x])=>{ const s=sphere(bronze,.22,1,.7,1); s.position.set(x,2.0,0); G.add(s); });
+  const head=sphere(skin,.24); head.position.y=2.45; G.add(head);
+  const helm=new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.16,12),iron); helm.position.y=2.6; G.add(helm);
+  const crest=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.42),glow(0x8a1a1a,.3)); crest.position.y=2.82; G.add(crest);
+  const spear=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,3.0,8),bronze); spear.position.set(.5,1.4,0); G.add(spear);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.34,8),iron); tip.position.set(.5,2.95,0); G.add(tip);
+  return G;
+}
+const MARS_NPCS=[
+  {id:'enyo', name:'Enyo', build:buildEnyo, x:-12, z:-7, face:0, radius:6,
+   greet:'Enyo: You wear the wheel’s training well. Good. The Road will ask for all of it.'}
+];
+function spawnRealmNPCs(g){
+  npcs=[];
+  MARS_NPCS.forEach(spec=>{
+    const grp=spec.build();
+    grp.position.set(spec.x,marsH(spec.x,spec.z),spec.z); grp.rotation.y=spec.face||0;
+    const label=npcLabel(spec.name); label.position.y=3.4; grp.add(label);
+    g.add(grp);
+    npcs.push({spec,grp});
+  });
+}
+function npcTick(dt){
+  if(!realm||!player) return;
+  let near=null, nd=1e9;
+  for(const n of npcs){
+    const d=Math.hypot(player.position.x-n.grp.position.x,player.position.z-n.grp.position.z);
+    if(d<n.spec.radius&&d<nd){ nd=d; near=n; }
+  }
+  if(near){
+    near.grp.rotation.y=Math.atan2(player.position.x-near.grp.position.x,player.position.z-near.grp.position.z);
+  }
+  realm.activeNPC=(near&&S.mode==='play')?near:null;
+  const prompt=document.getElementById('npcPrompt');
+  if(realm.activeNPC){
+    prompt.textContent=(IS_TOUCH?'Tap to speak with ':'Press E to speak with ')+realm.activeNPC.spec.name;
+    prompt.classList.remove('hidden');
+  } else prompt.classList.add('hidden');
+}
+function interactNPC(){
+  if(!realm||!realm.activeNPC||S.mode!=='play') return;
+  sfx.ui();
+  toast(realm.activeNPC.spec.greet);
 }
 function buildMarsRealm(){
   clearScene();
@@ -1216,7 +1288,8 @@ function buildMarsRealm(){
 
   scene.add(g);
   spawnHero(S.hero,new THREE.Vector3(0,marsH(0,0),0),Math.PI);
-  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0};
+  spawnRealmNPCs(g);
+  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null};
 }
 function clearScene(){
   while(scene.children.length) scene.remove(scene.children[0]);
@@ -5458,7 +5531,7 @@ function animate(){
     }
 
     if(keys['q']) camYaw+=dt*2.2;
-    if(keys['e']) camYaw-=dt*2.2;
+    if(keys['e']&&!(realm&&realm.activeNPC)) camYaw-=dt*2.2;
 
     // ---- basic attack: chase the target, strike on the swing timer ----
     let inRange=false;
@@ -6207,6 +6280,7 @@ function buildWheel(){
 
 addEventListener('keydown',e=>{
   keys[e.key.toLowerCase()]=true;
+  if(e.key.toLowerCase()==='e'&&realm&&realm.activeNPC){ interactNPC(); return; }
   if(e.code==='Space'){e.preventDefault(); usePower();}
   if(e.key==='Shift'||e.key.toLowerCase()==='f'){usePower2();}
   if(e.key.toLowerCase()==='r'){usePower3();}
@@ -6283,14 +6357,15 @@ function enterMars(){
   show('realmIntro');
 }
 function exitRealm(){
-  S.world='wheel'; S.mode='menu'; realm=null;
+  S.world='wheel'; S.mode='menu'; realm=null; npcs=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcPrompt'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
   show('menu'); setTabs();
 }
+document.getElementById('npcPrompt').addEventListener('click',()=>interactNPC());
 document.getElementById('roadBtn').onclick=()=>{audio(); sfx.ui(); enterMars();};
 document.getElementById('riBegin').onclick=()=>{
   hide('realmIntro'); show('hud'); setTouchUI(true); S.mode='play';

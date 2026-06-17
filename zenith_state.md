@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 0 (save schema and migration).
+2026-06-17, Mars World build track step 1 (NPC system).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -19,7 +19,20 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   v4 -> v5. Added S.zone (default null) for future dungeon zone transitions.
   Migration verified in a real browser: 22 checks (fresh defaults, partial-save
   merge, bad-data rejection, lvl clamp to 20, S.zone present). No gameplay change.
-- Next: step 1, NPC system (place Enyo at the Landing, interaction radius, E/tap).
+- Done: step 1, NPC system. New `// ===== MARS: NPC SYSTEM =====` block:
+  npcLabel() (canvas name sprite), buildEnyo() (simple crimson humanoid with
+  spear and helm crest), MARS_NPCS registry (Enyo at the Landing, -12,-7,
+  interaction radius 6), spawnRealmNPCs(), npcTick() (in-range detection, NPC
+  turns to face player, shows/hides the #npcPrompt), and interactNPC() (step-1
+  placeholder: a greeting toast; the dialogue card is step 2). Wired E (desktop)
+  and tap-the-prompt (mobile) to interact; camera 'e' rotation is suppressed
+  while an NPC is in range so there's no conflict. Prompt hides on lore-card open
+  and on realm exit; npcs[] resets on exit. Verified in browser: in-range shows
+  Enyo + prompt, E triggers the greeting, walking away clears both, she faces the
+  player. Harness and both gates pass.
+- Next: step 2, dialogue system (card-based UI reusing the lore-card pattern;
+  multiple lines, response choices, quest-accept buttons; replaces the step-1
+  greeting toast).
 
 ## Where things stand
 
