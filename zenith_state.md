@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-16, Mars visual polish, pass 3 (rocks and waymark stones).
+2026-06-17, Mars visual polish, pass 4 (sky, moons, and camera pitch).
 
 ## Where things stand
 
@@ -52,11 +52,20 @@ Section 6.) No em-dashes anywhere.
   dot, added per-point size variation via an aScale attribute injected into the
   PointsMaterial shader (onBeforeCompile), lowered opacity to .32, depthWrite
   off. Reads as soft warm haze now. realmTick was untouched (still drives dP/dG).
-- #3: sky and moons. Note: camera far plane is 500, but the sky dome (r900),
-  sun disc, stars, and Phobos (dist 500) are at/beyond it, so they get clipped
-  and the upper sky is just the flat scene.background. Fixing the sky likely
-  needs the far plane raised or the dome/moons pulled inside 500. Also make the
-  moons read as lit bodies (currently dark Lambert blobs).
+- Done: #3 sky, moons, and camera pitch.
+  - Far plane: raised to 2200 on enterMars and restored to 500 on exitRealm
+    (Mars-scoped) so the sky dome, sun, stars, and both moons are no longer
+    clipped. The dome now fills the background in place of the flat color.
+  - Sky: warmer horizon, dusky-violet zenith, brighter/larger stars.
+  - Moons: bigger (Phobos r17, Deimos r11) and lit with a sun terminator plus a
+    faint emissive so the dark side reads as a moon, not a hole. Findable now.
+  - Camera pitch: new camPitch var, added to the existing right-drag (vertical)
+    on desktop and the one-finger camera drag on mobile. Pitch raises the lookAt
+    aim by tan(camPitch)*horizDist, so at camPitch 0 the framing is byte-for-byte
+    the old view. Clamped [0, 1.35] (resting view is the floor, up to ~76 degrees,
+    cannot flip). Input is gated to S.world==='mars'; camPitch resets on
+    startLevel, enterMars, and exitRealm, so the 12 normal levels are untouched.
+    No new keys bound, per request.
 - Done: #4 rocks and waymark stones. Rocks now carry per-instance color (warm
   iron reds plus a few cooler slate stones) so they separate from the warm
   ground; every rock is seated with a soft contact-shadow stamp (a shared canvas

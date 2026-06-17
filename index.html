@@ -938,8 +938,8 @@ let portal=null;
 const keys={};
 const IS_TOUCH = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 const joy={active:false,id:null,x:0,y:0};
-let camDragId=null, camDragX=0, camDist=13;
-let camYaw=0, ghostTimer=0, emberTimer=0, decoyPulseT=0;
+let camDragId=null, camDragX=0, camDragY=0, camDist=13;
+let camYaw=0, camPitch=0, ghostTimer=0, emberTimer=0, decoyPulseT=0;
 let moveTarget=null, moveHold=false, pillars=[], eProjectiles=[], potions=[];
 let legionDecoys=[], boss=null, bossBeam=null;
 let attackTarget=null, hoverTarget=null, atkT=0, lastMouse={x:0,y:0,has:false};
@@ -1082,7 +1082,7 @@ function buildMarsRealm(){
   // the sky of the red dusk
   const sg=new THREE.SphereGeometry(900,28,18);
   const sp=sg.attributes.position, sc=new Float32Array(sp.count*3);
-  const hor=new THREE.Color(0xd98a4f), mid=new THREE.Color(0x7a3c33), top=new THREE.Color(0x241018);
+  const hor=new THREE.Color(0xe09455), mid=new THREE.Color(0x7a3c33), top=new THREE.Color(0x2a1c3a);
   for(let i=0;i<sp.count;i++){
     const y=sp.getY(i)/900;
     const dir=new THREE.Vector3(sp.getX(i),sp.getY(i),sp.getZ(i)).normalize();
@@ -1106,14 +1106,14 @@ function buildMarsRealm(){
     stP[i*3]=Math.cos(a)*Math.cos(e2)*r; stP[i*3+1]=Math.sin(e2)*r; stP[i*3+2]=Math.sin(a)*Math.cos(e2)*r;
   }
   stG.setAttribute('position',new THREE.BufferAttribute(stP,3));
-  g.add(new THREE.Points(stG,new THREE.PointsMaterial({color:0xffe9d2,size:1.6,transparent:true,opacity:.6,fog:false})));
+  g.add(new THREE.Points(stG,new THREE.PointsMaterial({color:0xffe9d2,size:2.4,transparent:true,opacity:.92,fog:false})));
 
   // Fear and Dread cross the sky
-  const phobos=new THREE.Mesh(new THREE.IcosahedronGeometry(9,0),
-    new THREE.MeshLambertMaterial({color:0x9a8478,fog:false}));
+  const phobos=new THREE.Mesh(new THREE.IcosahedronGeometry(17,1),
+    new THREE.MeshLambertMaterial({color:0xc2a890,emissive:0x2a1a14,fog:false}));
   phobos.scale.set(1,.78,.62);
-  const deimos=new THREE.Mesh(new THREE.IcosahedronGeometry(5,0),
-    new THREE.MeshLambertMaterial({color:0x8a7468,fog:false}));
+  const deimos=new THREE.Mesh(new THREE.IcosahedronGeometry(11,1),
+    new THREE.MeshLambertMaterial({color:0xb59a82,emissive:0x241712,fog:false}));
   deimos.scale.set(1,.84,.7);
   phobos.position.set(500,210,0);
   deimos.position.set(Math.cos(2.1)*330,300,Math.sin(2.1)*330);
@@ -1955,7 +1955,7 @@ function buildLevel(idx){
   S.freeze=0;S.slow=0;S.dashT=0;S.dashDir=null;S.reflect=0;S.stormT=0;S.meteorPending=false;
   S.ward=0;S.wardT=0;S.powerDmg=55;
   S.beaconShards=[];S.ramp=null;S.mael=null;S.volley=null;
-  camYaw=0; ghostTimer=0; emberTimer=0; decoyPulseT=0;
+  camYaw=0; camPitch=0; ghostTimer=0; emberTimer=0; decoyPulseT=0;
   updateHUD();
 }
 
@@ -5546,7 +5546,9 @@ function animate(){
       const _cmin=marsH(camera.position.x,camera.position.z)+1.6;
       if(camera.position.y<_cmin) camera.position.y=_cmin;
     }
-    camera.lookAt(player.position.x,_cgy+1.8,player.position.z);
+    // camPitch tilts the aim upward so the player can look to the sky; 0 keeps the old framing exactly
+    const _horiz=Math.hypot(player.position.x-camera.position.x,player.position.z-camera.position.z);
+    camera.lookAt(player.position.x,_cgy+1.8+Math.tan(camPitch)*_horiz,player.position.z);
 
     for(let i=shards.length-1;i>=0;i--){
       const s=shards[i];
@@ -6247,7 +6249,10 @@ document.getElementById('devBoss').onclick=()=>{audio(); sfx.ui(); startBoss();}
 function enterMars(){
   hide('menu');
   S.world='mars'; S.mode='intro';
+  camYaw=0; camPitch=0;
   buildMarsRealm();
+  // the realm has a real sky dome and moons far out; let the camera see that far
+  camera.far=2200; camera.updateProjectionMatrix();
   camera.position.set(0,24,40); camera.lookAt(0,6,-40);
   show('realmIntro');
 }
@@ -6256,6 +6261,7 @@ function exitRealm(){
   sfx.stopDrone();
   hide('hud'); hide('loreCard'); setTouchUI(false);
   clearScene();
+  camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
   show('menu'); setTabs();
 }
@@ -6390,7 +6396,7 @@ gateIn.addEventListener('keydown',e=>{
     if(S.mode!=='play'||!renderer) return;
     if(e.target!==renderer.domElement) return;
     if(e.pointerType==='mouse'){
-      if(e.button===2){ camDragId=e.pointerId; camDragX=e.clientX; }
+      if(e.button===2){ camDragId=e.pointerId; camDragX=e.clientX; camDragY=e.clientY; }
       else if(e.button===0){ moveHold=true; commandAt(e,true); audio(); }
       return;
     }
@@ -6408,7 +6414,9 @@ gateIn.addEventListener('keydown',e=>{
       }
     }
     if(camDragId===e.pointerId){
-      camYaw-=(e.clientX-camDragX)*.008; camDragX=e.clientX; return;
+      camYaw-=(e.clientX-camDragX)*.008; camDragX=e.clientX;
+      if(S.world==='mars'){ camPitch=Math.max(0,Math.min(1.35,camPitch-(e.clientY-camDragY)*.006)); }
+      camDragY=e.clientY; return;
     }
     if(moveHold&&e.pointerType==='mouse'){
       if(!(attackTarget&&enemies.includes(attackTarget))) setMoveTarget(e,false);
@@ -6423,8 +6431,10 @@ gateIn.addEventListener('keydown',e=>{
       camDist=Math.min(22,Math.max(7,camDist-(d-pinchD)*.04));
       pinchD=d; return;
     }
-    if(!T.drag&&Math.hypot(e.clientX-T.x,e.clientY-T.y)>10){ T.drag=true; camDragX=e.clientX; }
-    if(T.drag){ camYaw-=(e.clientX-camDragX)*.008; camDragX=e.clientX; }
+    if(!T.drag&&Math.hypot(e.clientX-T.x,e.clientY-T.y)>10){ T.drag=true; camDragX=e.clientX; camDragY=e.clientY; }
+    if(T.drag){ camYaw-=(e.clientX-camDragX)*.008; camDragX=e.clientX;
+      if(S.world==='mars'){ camPitch=Math.max(0,Math.min(1.35,camPitch-(e.clientY-camDragY)*.006)); }
+      camDragY=e.clientY; }
   });
   function endPtr(e){
     if(camDragId===e.pointerId) camDragId=null;
