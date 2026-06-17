@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-16, Mars visual polish, pass 2 (dust now soft round motes).
+2026-06-16, Mars visual polish, pass 3 (rocks and waymark stones).
 
 ## Where things stand
 
@@ -57,8 +57,13 @@ Section 6.) No em-dashes anywhere.
   and the upper sky is just the flat scene.background. Fixing the sky likely
   needs the far plane raised or the dome/moons pulled inside 500. Also make the
   moons read as lit bodies (currently dark Lambert blobs).
-- #4: rocks and waymark stones need their own material (value/hue separation
-  from the ground, base contact-shadow, carved look for the stones).
+- Done: #4 rocks and waymark stones. Rocks now carry per-instance color (warm
+  iron reds plus a few cooler slate stones) so they separate from the warm
+  ground; every rock is seated with a soft contact-shadow stamp (a shared canvas
+  radial dot on an instanced flat plane). Waymark stones are now faceted, tapered
+  CylinderGeometry monoliths in a cooler stone color, each on a wider base with
+  its own contact shadow. The gate of return is seated the same way. All inside
+  buildMarsRealm; realmTick (orb hover) unchanged.
 
 ## Next (from CLAUDE.md roadmap)
 
