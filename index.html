@@ -125,6 +125,10 @@
   #compass .cNpc{color:rgba(255,170,110,.95)}
   #compass .cCenter{position:absolute;left:50%;top:0;width:1px;height:34px;transform:translateX(-50%);
     background:linear-gradient(rgba(232,196,107,.55),transparent)}
+  #marksHUD{position:fixed;top:3.5rem;left:1rem;z-index:6;pointer-events:none;
+    font-family:'Marcellus',serif;color:var(--gold);font-size:.86rem;letter-spacing:.08em;
+    text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  #marksHUD .mGlyph{opacity:.85;margin-right:.15rem}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(190,30,30,.55) 100%);
@@ -356,6 +360,7 @@
   <div id="compassMarks"></div>
   <div class="cCenter"></div>
 </div>
+<div id="marksHUD" class="hidden" title="War-Marks"><span class="mGlyph">⚔</span> <span id="marksVal">0</span></div>
 <button id="pauseBtn" class="hidden" title="pause">❚❚</button>
 
 <div id="pause" class="layer card-layer hidden">
@@ -1072,6 +1077,7 @@ function realmTick(dt,t){
     }
   });
   realmEnemyTick(dt,t);
+  realmPickupTick(dt,t);
   npcTick(dt);
   updateCompass();
 }
@@ -1442,6 +1448,9 @@ function realmEnemySlain(e,tags){
   sfx.kill(); smokePuff(e.position,4); sparkle(e.position.clone().setY(e.position.y+1.2),0xff7a4a);
   if(attackTarget===e) attackTarget=null;
   if(hoverTarget===e) hoverTarget=null;
+  const kind=e.userData.kind;
+  addWarMarks(({warShade:3,boltThrower:4,bloodhound:3}[kind]||2)+Math.floor(Math.random()*2));
+  if(Math.random()<.35) dropMaterial(({warShade:'ironDust',boltThrower:'warStone',bloodhound:'fangShard'}[kind]||'ironDust'), e.position.clone());
   scene.remove(e); const i=enemies.indexOf(e); if(i>=0) enemies.splice(i,1);
   const pk=e.userData.pack;
   if(pk&&realmPacks[pk]!==undefined){
@@ -1449,6 +1458,47 @@ function realmEnemySlain(e,tags){
     if(realmPacks[pk]===0){
       if(questState('firstBlood')==='active') questAddProgress('firstBlood',1);
       toast('A war-band lies broken.');
+    }
+  }
+}
+// ===== MARS: LOOT DROPS =====
+// Realm kills grant War-Marks (auto, added to HEROES[i].mars.warMarks, shown in a
+// small HUD counter) and sometimes a crafting material that drops as a walk-over
+// pickup, like a shard. Gear drops join this in step 7 once MARS_GEAR exists.
+let realmPickups=[];
+const MAT_INFO={
+  ironDust:{color:0xc08a5a, label:'Iron Dust'},
+  warStone:{color:0x9a4a3a, label:'War-Stone Fragment'},
+  fangShard:{color:0xd8c0a0, label:'Fang Shard'}
+};
+function addWarMarks(n){
+  if(!HEROES) return;
+  heroMars().warMarks+=n; saveHeroes(); updateMarksHUD();
+}
+function updateMarksHUD(){
+  const el=document.getElementById('marksHUD'); if(!el) return;
+  if(S.world!=='mars'||!HEROES){ el.classList.add('hidden'); return; }
+  document.getElementById('marksVal').textContent=heroMars().warMarks;
+  el.classList.remove('hidden');
+}
+function dropMaterial(kind,pos){
+  const info=MAT_INFO[kind]; if(!info) return;
+  const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.28,0),
+    new THREE.MeshStandardMaterial({color:info.color,emissive:info.color,emissiveIntensity:.5,roughness:.5,metalness:.3}));
+  m.position.set(pos.x,marsH(pos.x,pos.z)+.7,pos.z);
+  m.userData={mat:kind, baseY:m.position.y};
+  scene.add(m); realmPickups.push(m);
+}
+function realmPickupTick(dt,t){
+  for(let i=realmPickups.length-1;i>=0;i--){
+    const m=realmPickups[i];
+    m.rotation.y+=dt*2.2; m.position.y=m.userData.baseY+Math.sin(t*2+i)*.16;
+    if(player&&hd(m.position,player.position)<2){
+      const k=m.userData.mat;
+      heroMars().materials[k]=(heroMars().materials[k]||0)+1; saveHeroes();
+      sfx.collect(1); sparkle(m.position.clone(),MAT_INFO[k].color,.4);
+      toast('+1 '+MAT_INFO[k].label);
+      scene.remove(m); realmPickups.splice(i,1);
     }
   }
 }
@@ -1640,6 +1690,7 @@ function buildMarsRealm(){
   spawnHero(S.hero,new THREE.Vector3(0,marsH(0,0),0),Math.PI);
   spawnRealmNPCs(g);
   spawnRealmPacks();
+  realmPickups=[];
   realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null,dialog:null};
 }
 function clearScene(){
@@ -6711,9 +6762,9 @@ function enterMars(){
   show('realmIntro');
 }
 function exitRealm(){
-  S.world='wheel'; S.mode='menu'; realm=null; npcs=[];
+  S.world='wheel'; S.mode='menu'; realm=null; npcs=[]; realmPickups=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
@@ -6728,7 +6779,7 @@ document.getElementById('riBegin').onclick=()=>{
   document.getElementById('hGlyph').textContent=L.glyph;
   document.getElementById('hName').textContent=L.sign;
   document.getElementById('hPlanet').textContent="The Wanderers' Road";
-  refreshSlots(); refreshPowerName(); updateHUD(); updateQuestTracker();
+  refreshSlots(); refreshPowerName(); updateHUD(); updateQuestTracker(); updateMarksHUD();
   toast('Walk. The stones remember.');
 };
 document.getElementById('lcOk').onclick=()=>{ sfx.ui(); hide('loreCard'); if(S.world==='mars') S.mode='play'; };

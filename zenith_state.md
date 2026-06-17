@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 5 (realm enemy spawning).
+2026-06-17, Mars World build track step 6 (loot drops).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -89,8 +89,20 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   pack->progress, quest done after 3 packs, persisted). Harness/gates pass.
 - Possible polish later: the Bloodhound mesh reads as a low dark shape but less
   distinct than the shades; could get a dedicated visual pass like Enyo did.
-- Next: step 6, loot drops (War-Marks auto-pickup to HEROES[i].mars.warMarks, plus
-  occasional gear/materials; walk-over pickup like shards; War-Marks HUD counter).
+- Done: step 6, loot drops. New `// ===== MARS: LOOT DROPS =====` block.
+  realmEnemySlain now grants War-Marks per kill (warShade 3-4, boltThrower 4-5,
+  bloodhound 3-4) via addWarMarks -> HEROES[i].mars.warMarks (saveHeroes), shown in
+  a small top-left #marksHUD counter (⚔ + value), and a 35% chance to dropMaterial
+  keyed by kind (warShade->ironDust, boltThrower->warStone, bloodhound->fangShard).
+  Materials drop as glowing spinning pickups (realmPickups[]) collected by walking
+  within 2 units (realmPickupTick, called from realmTick) into HEROES[i].mars.
+  materials (saveHeroes). Pickups reset on realm build/exit; marksHUD shown on
+  riBegin, hidden on exit. Gear drops are deferred to step 7 (MARS_GEAR not built
+  yet). Verified in browser: 10 checks (War-Marks on kill + HUD + persist; material
+  spawn, walk-over collect +1, pickup removed, persist; kills leave drops). Harness/gates pass.
+- Next: step 7, realm gear system (helm + legs realm-only slots plus visual weapon/
+  chest; equip/unequip with mesh swapping on the hero; Worn tier only; store in
+  HEROES[i].mars.gear). Then gear can also drop from enemies/quests.
 
 ## Where things stand
 
