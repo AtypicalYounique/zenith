@@ -1136,16 +1136,27 @@ function buildMarsRealm(){
   }
   rocks.count=ri; g.add(rocks);
 
-  // drifting dust
-  const dG=new THREE.BufferGeometry(), dP=new Float32Array(380*3);
+  // drifting dust: soft round motes from a canvas dot, not the default square sprite
+  const dustCv=document.createElement('canvas'); dustCv.width=dustCv.height=64;
+  const dustX=dustCv.getContext('2d');
+  const dustGrad=dustX.createRadialGradient(32,32,0,32,32,32);
+  dustGrad.addColorStop(0,'rgba(255,255,255,1)');
+  dustGrad.addColorStop(.35,'rgba(255,255,255,.55)');
+  dustGrad.addColorStop(1,'rgba(255,255,255,0)');
+  dustX.fillStyle=dustGrad; dustX.fillRect(0,0,64,64);
+  const dustTex=new THREE.CanvasTexture(dustCv);
+  const dG=new THREE.BufferGeometry(), dP=new Float32Array(380*3), dScale=new Float32Array(380);
   for(let i=0;i<380;i++){
     const a=Math.random()*Math.PI*2, d=Math.random()*240;
     dP[i*3]=Math.cos(a)*d; dP[i*3+2]=Math.sin(a)*d;
     dP[i*3+1]=marsH(dP[i*3],dP[i*3+2])+.4+Math.random()*5;
+    dScale[i]=.5+Math.random()*Math.random()*2.6; // mostly fine motes, a few large soft puffs
   }
   dG.setAttribute('position',new THREE.BufferAttribute(dP,3));
-  const dust=new THREE.Points(dG,new THREE.PointsMaterial({color:0xc97a4a,size:.55,transparent:true,opacity:.5}));
-  g.add(dust);
+  dG.setAttribute('aScale',new THREE.BufferAttribute(dScale,1));
+  const dustMat=new THREE.PointsMaterial({map:dustTex,color:0xc97a4a,size:.9,transparent:true,opacity:.32,depthWrite:false});
+  dustMat.onBeforeCompile=sh=>{ sh.vertexShader='attribute float aScale;\n'+sh.vertexShader.replace('gl_PointSize = size;','gl_PointSize = size * aScale;'); };
+  g.add(new THREE.Points(dG,dustMat));
 
   // the reading stones
   const sites=[];
