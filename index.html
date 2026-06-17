@@ -107,6 +107,7 @@
     background:rgba(10,6,16,.6);border:1px solid rgba(232,196,107,.42);border-radius:999px;
     padding:.5rem 1.1rem;cursor:pointer;z-index:6;transition:opacity .25s;
     box-shadow:0 0 18px rgba(232,196,107,.18)}
+  #ndChoices{display:flex;flex-direction:column;gap:.5rem;align-items:center;margin-top:.6rem}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(190,30,30,.55) 100%);
@@ -318,6 +319,14 @@
     <div class="loreBody" id="lcBody"></div>
     <button class="btn" id="lcOk">Continue</button>
     <button class="btn" id="lcReturn" style="display:none">Return to the Wheel</button>
+  </div>
+</div>
+<div id="npcDialog" class="layer card-layer hidden">
+  <div class="card">
+    <div class="glyph" id="ndGlyph">♂</div>
+    <h2 id="ndName" style="font-family:'Marcellus',serif;letter-spacing:.14em"></h2>
+    <div class="loreBody" id="ndBody"></div>
+    <div id="ndChoices"></div>
   </div>
 </div>
 <button id="pauseBtn" class="hidden" title="pause">❚❚</button>
@@ -1067,8 +1076,7 @@ function buildEnyo(){
   return G;
 }
 const MARS_NPCS=[
-  {id:'enyo', name:'Enyo', build:buildEnyo, x:-12, z:-7, face:0, radius:6,
-   greet:'Enyo: You wear the wheel’s training well. Good. The Road will ask for all of it.'}
+  {id:'enyo', name:'Enyo', glyph:'♂', build:buildEnyo, x:-12, z:-7, face:0, radius:6}
 ];
 function spawnRealmNPCs(g){
   npcs=[];
@@ -1099,8 +1107,64 @@ function npcTick(dt){
 }
 function interactNPC(){
   if(!realm||!realm.activeNPC||S.mode!=='play') return;
-  sfx.ui();
-  toast(realm.activeNPC.spec.greet);
+  openDialog(realm.activeNPC);
+}
+// ===== MARS: DIALOGUE UI =====
+// Card-based conversation reusing the lore-card visual. A dialogue is a graph of
+// nodes; each node has body text and either a single continue (next), a set of
+// choices, or an end. A choice can goto another node, end the talk, or accept a
+// quest. Opening sets S.mode to 'dialogue', which pauses play like the lore card.
+const MARS_DIALOGUE={
+  enyo:{ start:'intro1', nodes:{
+    intro1:{text:'So the wheel sent another. Twelve signs have walked this road. Most turn back at the first scream.', next:'hub'},
+    hub:{text:'I’m Enyo. I tear cities down beside my brother, and I’ve watched this valley since long before you drew breath. Ask what you like, or take up work.', choices:[
+      {label:'Who are you to Ares?', goto:'about'},
+      {label:'What’s happening to this realm?', goto:'realm'},
+      {label:'Is there work for me?', goto:'quest'},
+      {label:'(Step back)', end:true}
+    ]},
+    about:{text:'His sister. His shadow in every sack and rout. Where Ares goes, I’m already there. Loyalty isn’t a feeling to us. It’s a place we stand.', next:'hub'},
+    realm:{text:'The red used to be clean. Now the camps move with one mind, and something old turns over under the dust. Boldness was Mars’ gift to you at birth. You’ll need every grain of it.', next:'hub'},
+    quest:{text:'War Shades creep toward the Landing. They never used to think. Now they march. Break three of their packs in the Proving Grounds, and we’ll talk about who taught them to.', choices:[
+      {label:'I’ll break them.', accept:'firstBlood', end:true},
+      {label:'Not yet.', goto:'hub'}
+    ]}
+  }}
+};
+function openDialog(npc){
+  if(!npc||!realm) return;
+  const def=MARS_DIALOGUE[npc.spec.id]; if(!def) return;
+  realm.dialog={npcId:npc.spec.id, def};
+  S.mode='dialogue'; hide('npcPrompt');
+  document.getElementById('ndGlyph').textContent=npc.spec.glyph||'♂';
+  document.getElementById('ndName').textContent=npc.spec.name;
+  renderDialogNode(def.start);
+  show('npcDialog'); sfx.ui();
+}
+function renderDialogNode(id){
+  const def=realm&&realm.dialog&&realm.dialog.def; if(!def) return;
+  const node=def.nodes[id]; if(!node){ closeDialog(); return; }
+  document.getElementById('ndBody').textContent=node.text;
+  const box=document.getElementById('ndChoices'); box.innerHTML='';
+  const addBtn=(label,fn)=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=label; b.onclick=()=>{ sfx.ui(); fn(); }; box.appendChild(b); };
+  if(node.choices) node.choices.forEach(c=>addBtn(c.label,()=>handleChoice(c)));
+  else if(node.next) addBtn('Continue',()=>renderDialogNode(node.next));
+  else addBtn('Farewell',()=>closeDialog());
+}
+function handleChoice(c){
+  if(c.accept) dialogAccept(c.accept);
+  if(c.end){ closeDialog(); return; }
+  if(c.goto){ renderDialogNode(c.goto); return; }
+  closeDialog();
+}
+function dialogAccept(questId){
+  // Step 3 wires this to HEROES[S.hero].mars.quests and the quest tracker. For now, confirm in character.
+  toast('Enyo: Then go. Come back bloody.');
+}
+function closeDialog(){
+  hide('npcDialog');
+  if(realm) realm.dialog=null;
+  if(S.world==='mars') S.mode='play';
 }
 function buildMarsRealm(){
   clearScene();
@@ -1289,7 +1353,7 @@ function buildMarsRealm(){
   scene.add(g);
   spawnHero(S.hero,new THREE.Vector3(0,marsH(0,0),0),Math.PI);
   spawnRealmNPCs(g);
-  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null};
+  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null,dialog:null};
 }
 function clearScene(){
   while(scene.children.length) scene.remove(scene.children[0]);
@@ -6280,6 +6344,7 @@ function buildWheel(){
 
 addEventListener('keydown',e=>{
   keys[e.key.toLowerCase()]=true;
+  if(S.mode==='dialogue'){ if(e.key==='Escape') closeDialog(); return; }
   if(e.key.toLowerCase()==='e'&&realm&&realm.activeNPC){ interactNPC(); return; }
   if(e.code==='Space'){e.preventDefault(); usePower();}
   if(e.key==='Shift'||e.key.toLowerCase()==='f'){usePower2();}
@@ -6359,7 +6424,7 @@ function enterMars(){
 function exitRealm(){
   S.world='wheel'; S.mode='menu'; realm=null; npcs=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcPrompt'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;

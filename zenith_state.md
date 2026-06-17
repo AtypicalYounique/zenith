@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 1 (NPC system).
+2026-06-17, Mars World build track step 2 (dialogue system).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -30,9 +30,22 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   and on realm exit; npcs[] resets on exit. Verified in browser: in-range shows
   Enyo + prompt, E triggers the greeting, walking away clears both, she faces the
   player. Harness and both gates pass.
-- Next: step 2, dialogue system (card-based UI reusing the lore-card pattern;
-  multiple lines, response choices, quest-accept buttons; replaces the step-1
-  greeting toast).
+- Done: step 2, dialogue system. New `// ===== MARS: DIALOGUE UI =====` block:
+  a #npcDialog card (reuses .card / .loreBody styling) with glyph, name, body,
+  and a #ndChoices button column. MARS_DIALOGUE is a per-NPC node graph; each node
+  has text and either a single `next` (Continue), a set of `choices`, or an end
+  (Farewell). A choice can `goto` a node, `end` the talk, or `accept` a quest.
+  openDialog/renderDialogNode/handleChoice/closeDialog drive it. interactNPC() now
+  opens the dialogue (replaced the step-1 toast). Opening sets S.mode='dialogue'
+  (pauses play like the lore card); closing resumes. Escape closes; gameplay keys
+  are swallowed while talking. dialogAccept() is a placeholder toast for now;
+  step 3 wires it to HEROES[S.hero].mars.quests and the tracker. Enyo has a full
+  intro: greeting -> hub with 4 choices -> lore branches that return -> a quest
+  offer (firstBlood) with accept/decline. Verified in browser: 9 flow checks pass
+  (open, branch, return, accept-closes-and-resumes, Escape-closes). Harness/gates pass.
+- Next: step 3, quest system (state machine on HEROES[i].mars.quests:
+  locked/offered/active/done; quest tracker UI lower-right; wire dialogAccept to
+  set firstBlood active and persist via saveHeroes; "The First Blood" as test case).
 
 ## Where things stand
 
