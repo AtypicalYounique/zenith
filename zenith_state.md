@@ -5,7 +5,21 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars visual polish, pass 4 (sky, moons, and camera pitch).
+2026-06-17, Mars World build track step 0 (save schema and migration).
+
+## Mars World build track (from MARS_WORLD_DESIGN.md)
+
+Building the Mars realm into a living world (NPCs, quests, enemies, gear, shop,
+dungeons) per MARS_WORLD_DESIGN.md, in its 17-step build order (0 through 16).
+Each step: build, run harness, screenshots if visual, check with Ryan, commit.
+
+- Done: step 0, save schema and migration. Added per-hero HEROES[i].mars via a
+  new loadMars(m) helper in loadHeroes(); coexists with the universal Mountain
+  progression and saves through the existing saveHeroes(). Schema version bumped
+  v4 -> v5. Added S.zone (default null) for future dungeon zone transitions.
+  Migration verified in a real browser: 22 checks (fresh defaults, partial-save
+  merge, bad-data rejection, lvl clamp to 20, S.zone present). No gameplay change.
+- Next: step 1, NPC system (place Enyo at the Landing, interaction radius, E/tap).
 
 ## Where things stand
 

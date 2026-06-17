@@ -948,7 +948,7 @@ let heroState=null, heraldParts=[], omenRef=null;
 let finale=null;
 
 const S = {
-  mode:'menu', level:0, cycle:0, view:0, asc:false, world:'wheel', lastFinaleCycle:0,
+  mode:'menu', level:0, cycle:0, view:0, asc:false, world:'wheel', zone:null, lastFinaleCycle:0,
   unlocked:1, completed:new Array(12).fill(false),
   unlocked2:0, completed2:new Array(12).fill(false),
   unlocked3:0, completed3:new Array(12).fill(false), asc2:false,
@@ -1960,6 +1960,31 @@ function buildLevel(idx){
 }
 
 // ---- the Ascent: each champion grows, and the wheel remembers ----
+// ===== MARS: SAVE SCHEMA =====
+// Per-hero Mars realm data. Coexists with the universal Mountain progression
+// (lvl/xp/skills/gear). loadMars migrates old saves cleanly: every field has a
+// default, and any existing value is validated and kept. Saved via saveHeroes().
+const MARS_QUEST_KEYS=['firstBlood','voiceInBronze','whatNetRemembers','fathersTrial','sonsReckoning','eyesOnEdge','ironHarvest','fallenScout','roostersVigil','skullRoad','whatWasLeftBehind'];
+const MARS_QUEST_STATES=['locked','offered','active','done'];
+const MARS_MATERIALS=['ironDust','warStone','fangShard','colossalIron','dreadEssence'];
+const MARS_BOUNTIES=['eyesOnEdge','ironHarvest','fallenScout','roostersVigil','skullRoad'];
+function loadMars(m){
+  m=(m&&typeof m==='object')?m:{};
+  const intMin=(v,lo)=>Math.max(lo,(typeof v==='number'&&isFinite(v))?Math.floor(v):lo);
+  const quests={}; MARS_QUEST_KEYS.forEach(k=>{ quests[k]=(m.quests&&MARS_QUEST_STATES.indexOf(m.quests[k])>=0)?m.quests[k]:'locked'; });
+  const dn=(m.dungeons&&typeof m.dungeons==='object')?m.dungeons:{};
+  const dungeons={bronzeJar:!!dn.bronzeJar,invisibleNet:!!dn.invisibleNet,hillOfJustice:!!dn.hillOfJustice};
+  const gr=(m.gear&&typeof m.gear==='object')?m.gear:{};
+  const gear={helm:(typeof gr.helm==='string')?gr.helm:null,legs:(typeof gr.legs==='string')?gr.legs:null};
+  const materials={}; MARS_MATERIALS.forEach(k=>{ materials[k]=intMin(m.materials&&m.materials[k],0); });
+  const bounties={}; MARS_BOUNTIES.forEach(k=>{ bounties[k]=intMin(m.bounties&&m.bounties[k],0); });
+  const inventory=Array.isArray(m.inventory)?m.inventory.filter(x=>typeof x==='string'):[];
+  const discovered=Array.isArray(m.discovered)?m.discovered.filter(x=>typeof x==='string'):[];
+  return {
+    lvl:Math.min(20,intMin(m.lvl,1)), xp:intMin(m.xp,0), warMarks:intMin(m.warMarks,0),
+    quests, dungeons, gear, inventory, materials, discovered, bounties
+  };
+}
 let HEROES=null;
 function loadHeroes(){
   try{ HEROES=JSON.parse(localStorage.getItem('zz_heroes')); }catch(err){ HEROES=null; }
@@ -1980,8 +2005,9 @@ function loadHeroes(){
     const claimed=(bounty.c0?2:0)+(bounty.c1?2:0)+(bounty.c2?2:0);
     const budget=Math.max(0,(lvl-1)+claimed-spent);
     return {
-      v:4,
+      v:5,
       bounty,
+      mars:loadMars(h.mars),
       summit:(['uranus','neptune','pluto'].indexOf(h.summit)>=0)?h.summit:null,
       lvl, xp:Math.max(0,h.xp|0), pts:Math.max(0,h.pts|0),
       sp:(typeof h.sp==='number')?Math.max(0,Math.min(budget,h.sp|0)):budget,
