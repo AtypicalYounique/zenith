@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 3 (quest system) + Enyo playtest fixes.
+2026-06-17, Mars World build track step 4 (compass HUD).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -60,8 +60,21 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   and hides on realm exit; questProgress (per-session count) resets on enterMars.
   Verified in browser: 18 checks (accept->active->persist across reload->progress
   ->done->persist; tracker show/hide; state-aware dialogue). Harness/gates pass.
-- Next: step 4, compass HUD (horizontal bar at top: cardinal direction, active
-  quest waypoint icon, nearby NPC icons).
+- Done: step 4, compass HUD. New `// ===== MARS: COMPASS HUD =====` block:
+  a top-center #compass bar (edge-faded via CSS mask) with 8 cardinal/intercardinal
+  ticks that scroll with facing, plus pooled markers for the active quest waypoint
+  (gold diamond, from MARS_QUESTS[id].target) and each NPC (dot), positioned by
+  bearing and clamped to the bar edges when off-screen. Convention: North=-z, the
+  camera's facing bearing is -camYaw; bearingDeg(dx,dz)=atan2(dx,-dz). updateCompass
+  runs each play frame from realmTick; hides on realm exit. Refactored a shared
+  activeQuestId() helper (used by the tracker and compass) and gave firstBlood a
+  waypoint target (70,-110) in the Proving Grounds. Verified in browser: 7 checks
+  (centered cardinal matches facing across N/E/S/W; NPC marker shown and centers
+  when facing Enyo; quest waypoint appears when active). Harness/gates pass.
+- Next: step 5, realm enemy spawning (War Shades, Bolt Throwers, Bloodhounds via a
+  new spawnRealmEnemy/realmEnemyTick, aggro/leash, grounded on marsH, outside the
+  Landing; reuse the existing combat for damage/health/powers). Wire kills to
+  questAddProgress('firstBlood') so The First Blood can finally complete.
 
 ## Where things stand
 

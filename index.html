@@ -113,6 +113,18 @@
     text-shadow:0 1px 3px rgba(0,0,0,.75)}
   #qtName{font-family:'Marcellus',serif;color:var(--gold);letter-spacing:.12em;font-size:.84rem;margin-bottom:.15rem}
   #qtProg{color:var(--gold);margin-top:.2rem;letter-spacing:.06em}
+  #compass{position:fixed;top:.6rem;left:50%;transform:translateX(-50%);width:360px;height:34px;z-index:6;
+    pointer-events:none;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+  #compass .cTick{position:absolute;top:2px;transform:translateX(-50%);white-space:nowrap;
+    font-family:'Marcellus',serif;font-size:.66rem;letter-spacing:.08em;color:rgba(239,233,218,.55)}
+  #compass .cCard{color:rgba(232,196,107,.9);font-size:.78rem}
+  #compass .cMark{position:absolute;top:18px;transform:translateX(-50%);font-size:.74rem;line-height:1}
+  #compass .cQuest{color:var(--gold);text-shadow:0 0 6px rgba(232,196,107,.8)}
+  #compass .cNpc{color:rgba(255,170,110,.95)}
+  #compass .cCenter{position:absolute;left:50%;top:0;width:1px;height:34px;transform:translateX(-50%);
+    background:linear-gradient(rgba(232,196,107,.55),transparent)}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(190,30,30,.55) 100%);
@@ -338,6 +350,11 @@
   <div id="qtName"></div>
   <div id="qtObj"></div>
   <div id="qtProg"></div>
+</div>
+<div id="compass" class="hidden">
+  <div id="compassTrack"></div>
+  <div id="compassMarks"></div>
+  <div class="cCenter"></div>
 </div>
 <button id="pauseBtn" class="hidden" title="pause">❚❚</button>
 
@@ -1055,6 +1072,7 @@ function realmTick(dt,t){
     }
   });
   npcTick(dt);
+  updateCompass();
 }
 // ===== MARS: NPC SYSTEM =====
 // An NPC is a positioned mesh group with a floating name label and an interaction
@@ -1211,8 +1229,14 @@ function closeDialog(){
 const MARS_QUESTS={
   firstBlood:{ name:'The First Blood', giver:'enyo',
     objective:'Break War Shade packs creeping toward the Landing.',
-    goal:3, unit:'Packs broken' }
+    goal:3, unit:'Packs broken', target:{x:70,z:-110} }
 };
+function activeQuestId(){
+  if(!HEROES||S.world!=='mars') return null;
+  const qs=heroMars().quests;
+  for(const id in MARS_QUESTS){ if(qs[id]==='active') return id; }
+  return null;
+}
 let questProgress={};
 function heroMars(){ return HEROES[S.hero].mars; }
 function questState(id){ return (HEROES&&heroMars().quests[id])||'locked'; }
@@ -1226,17 +1250,58 @@ function questAddProgress(id,n=1){
 }
 function updateQuestTracker(){
   const el=document.getElementById('questTracker'); if(!el) return;
-  let active=null;
-  if(S.world==='mars'&&HEROES){
-    const qs=heroMars().quests;
-    for(const id in MARS_QUESTS){ if(qs[id]==='active'){ active=id; break; } }
-  }
+  const active=activeQuestId();
   if(!active){ el.classList.add('hidden'); return; }
   const q=MARS_QUESTS[active];
   document.getElementById('qtName').textContent=q.name;
   document.getElementById('qtObj').textContent=q.objective;
   document.getElementById('qtProg').textContent=(q.unit||'Progress')+': '+(questProgress[active]||0)+' / '+q.goal;
   el.classList.remove('hidden');
+}
+// ===== MARS: COMPASS HUD =====
+// A horizontal bar at the top showing the direction the camera faces, with the
+// active quest waypoint and nearby NPCs placed at their bearings. North is -z;
+// the camera's facing bearing is -camYaw. Lighter than a full map, always on in play.
+let compassTicks=null; const compassMarks=[];
+function initCompass(){
+  const track=document.getElementById('compassTrack'); if(!track) return;
+  compassTicks=[];
+  [['N',0,1],['NE',45,0],['E',90,1],['SE',135,0],['S',180,1],['SW',225,0],['W',270,1],['NW',315,0]].forEach(([label,deg,card])=>{
+    const t=document.createElement('div'); t.className='cTick'+(card?' cCard':''); t.textContent=label; t._deg=deg;
+    track.appendChild(t); compassTicks.push(t);
+  });
+}
+function compassMark(i){
+  let m=compassMarks[i];
+  if(!m){ m=document.createElement('div'); document.getElementById('compassMarks').appendChild(m); compassMarks[i]=m; }
+  return m;
+}
+function bearingDeg(dx,dz){ return Math.atan2(dx,-dz)*180/Math.PI; } // 0=N(-z), 90=E(+x)
+function updateCompass(){
+  const el=document.getElementById('compass'); if(!el) return;
+  if(S.world!=='mars'||!player){ el.classList.add('hidden'); return; }
+  if(!compassTicks) initCompass();
+  el.classList.remove('hidden');
+  const W=360, span=180, pxDeg=W/span, center=W/2;
+  const facing=-camYaw*180/Math.PI;
+  const norm=a=>((a+180)%360+360)%360-180;
+  compassTicks.forEach(t=>{
+    const d=norm(t._deg-facing);
+    if(Math.abs(d)<=span/2+2){ t.style.display='block'; t.style.left=(center+d*pxDeg)+'px'; }
+    else t.style.display='none';
+  });
+  const list=[];
+  const q=activeQuestId();
+  if(q&&MARS_QUESTS[q]&&MARS_QUESTS[q].target){ const tg=MARS_QUESTS[q].target; list.push({x:tg.x,z:tg.z,cls:'cQuest',glyph:'◆'}); }
+  for(const n of npcs) list.push({x:n.grp.position.x,z:n.grp.position.z,cls:'cNpc',glyph:'•'});
+  list.forEach((it,i)=>{
+    const d=norm(bearingDeg(it.x-player.position.x,it.z-player.position.z)-facing);
+    const m=compassMark(i);
+    m.textContent=it.glyph; m.className='cMark '+it.cls; m.style.display='block';
+    m.style.left=(center+Math.max(-span/2,Math.min(span/2,d))*pxDeg)+'px';
+    m.style.opacity=Math.abs(d)>span/2?'.5':'1';
+  });
+  for(let i=list.length;i<compassMarks.length;i++) compassMarks[i].style.display='none';
 }
 function buildMarsRealm(){
   clearScene();
@@ -6496,7 +6561,7 @@ function enterMars(){
 function exitRealm(){
   S.world='wheel'; S.mode='menu'; realm=null; npcs=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
