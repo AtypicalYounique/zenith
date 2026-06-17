@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 6 (loot drops).
+2026-06-17, Mars World build track step 7 (realm gear system).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -100,9 +100,22 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   riBegin, hidden on exit. Gear drops are deferred to step 7 (MARS_GEAR not built
   yet). Verified in browser: 10 checks (War-Marks on kill + HUD + persist; material
   spawn, walk-over collect +1, pickup removed, persist; kills leave drops). Harness/gates pass.
-- Next: step 7, realm gear system (helm + legs realm-only slots plus visual weapon/
-  chest; equip/unequip with mesh swapping on the hero; Worn tier only; store in
-  HEROES[i].mars.gear). Then gear can also drop from enemies/quests.
+- Done: step 7, realm gear system. New `// ===== MARS: REALM GEAR =====` block.
+  MARS_GEAR registry (Worn tier: worn_helm, worn_legs) with buildWornHelm/
+  buildWornLegs. equipMarsGear/unequipMarsGear store the item id in
+  HEROES[i].mars.gear (saveHeroes) and applyMarsGear swaps mesh groups onto the
+  hero, placed from the avatar's own extents (spawnHero now captures bodyMinY/
+  bodyMaxY before effect meshes inflate the box). applyMarsGear runs after
+  spawnHero in buildMarsRealm so equipped gear re-shows on entry. dropGear drops a
+  gold pickup (12% on kill); collecting adds to mars.inventory and auto-equips an
+  empty slot (visible immediately). Verified in browser: 10 checks (attach,
+  persist, unequip, reload+re-apply, drop->inventory+auto-equip). Harness/gates pass.
+- Placement note: helm/legs sit via the body box and read best on humanoid signs;
+  on creature rigs (Leo lion, Aries ram) they sit approximately. Candidate for a
+  per-sign anchor polish later, like the Bloodhound mesh.
+- Next: step 8, inventory UI (press I: grid of the 5 visual realm slots + the 3
+  Mountain relic slots, inventory bag, materials, War-Marks balance; equip/unequip
+  from here).
 
 ## Where things stand
 
