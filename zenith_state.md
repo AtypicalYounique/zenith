@@ -13,8 +13,17 @@ Section 6.) No em-dashes anywhere.
 - GitHub: connected to https://github.com/AtypicalYounique/zenith (public).
   Push with `git push`. Authenticated locally via the `gh` CLI as AtypicalYounique.
 - Vercel: the `.vercel/` folder links this to the existing Vercel project `zenith`
-  (it is git-ignored, not committed). Deploy is out of scope until asked.
-- The game is one file, `index.html` (Three.js r128 from CDN). Unchanged this session.
+  (it is git-ignored, not committed). Production alias is `zenith-jet-beta.vercel.app`.
+- Deploy method (verified 2026-06-17): GitHub push does NOT auto-deploy. The repo
+  is not connected to Vercel's Git integration, so `git push` only updates GitHub.
+  To publish, deploy explicitly with the Vercel CLI from `~/zenith`:
+  `npx vercel deploy --prod --yes`. The CLI is already logged in as
+  `ryanslacerda1992-9598`, and `.vercel/project.json` links the project, so it is
+  non-interactive. Confirm a deploy is live by fetching
+  `https://zenith-jet-beta.vercel.app/index.html` and grepping for a unique string
+  from the change. (Optional one-time fix: connect the GitHub repo in the Vercel
+  dashboard to enable push-to-deploy.)
+- The game is one file, `index.html` (Three.js r128 from CDN).
 
 ## Safety net (run before every deploy, then commit)
 
