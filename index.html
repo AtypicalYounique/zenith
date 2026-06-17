@@ -1062,21 +1062,31 @@ function npcLabel(text){
   return sp;
 }
 function buildEnyo(){
+  // Feminine silhouette: flared gown (wide hips), cinched waist, narrow shoulders,
+  // long hair down the back, a face on the front (+z) so her turn-to-face reads.
   const G=new THREE.Group();
-  const cloth=M(0x6e1f1f,{roughness:.9}), iron=M(0x382a2e,{metalness:.45,roughness:.5});
-  const bronze=glow(0xb87333,.22,{metalness:.6,roughness:.4}), skin=M(0xcaa985);
-  [[-.16],[.16]].forEach(([x])=>{ const l=new THREE.Mesh(new THREE.CylinderGeometry(.13,.1,1.0,8),iron); l.position.set(x,.5,0); G.add(l); });
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.46,1.25,10),cloth); torso.position.y=1.5; G.add(torso);
-  [[-.42],[.42]].forEach(([x])=>{ const s=sphere(bronze,.22,1,.7,1); s.position.set(x,2.0,0); G.add(s); });
-  const head=sphere(skin,.24); head.position.y=2.45; G.add(head);
-  const helm=new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.16,12),iron); helm.position.y=2.6; G.add(helm);
-  const crest=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.42),glow(0x8a1a1a,.3)); crest.position.y=2.82; G.add(crest);
-  const spear=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,3.0,8),bronze); spear.position.set(.5,1.4,0); G.add(spear);
-  const tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.34,8),iron); tip.position.set(.5,2.95,0); G.add(tip);
+  const cloth=M(0x7a2222,{roughness:.9}), cloth2=M(0x591818,{roughness:.9});
+  const iron=M(0x382a2e,{metalness:.45,roughness:.5});
+  const bronze=glow(0xb87333,.22,{metalness:.6,roughness:.4});
+  const skin=M(0xcaa985), hair=M(0x241616,{roughness:.85});
+  const skirt=new THREE.Mesh(new THREE.CylinderGeometry(.3,.66,1.55,14),cloth); skirt.position.y=.78; G.add(skirt);
+  const waist=new THREE.Mesh(new THREE.CylinderGeometry(.26,.3,.16,12),bronze); waist.position.y=1.56; G.add(waist);
+  const bodice=new THREE.Mesh(new THREE.CylinderGeometry(.23,.3,.64,12),cloth2); bodice.position.y=1.92; G.add(bodice);
+  const bust=sphere(cloth2,.17,1.5,.7,.8); bust.position.set(0,1.92,.15); G.add(bust);
+  [[-.25],[.25]].forEach(([x])=>{ const s=sphere(bronze,.12,1,.7,1); s.position.set(x,2.2,0); G.add(s); });
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,.16,8),skin); neck.position.y=2.32; G.add(neck);
+  const head=sphere(skin,.22); head.position.y=2.56; G.add(head);
+  [[-.08],[.08]].forEach(([x])=>{ const eye=sphere(M(0x140a0a),.035); eye.position.set(x,2.59,.2); G.add(eye); });
+  const circlet=new THREE.Mesh(new THREE.TorusGeometry(.2,.025,8,16),bronze); circlet.rotation.x=Math.PI/2; circlet.position.y=2.67; G.add(circlet);
+  const hairTop=sphere(hair,.26,1,.95,1.05); hairTop.position.set(0,2.62,-.03); G.add(hairTop);
+  const hairBack=new THREE.Mesh(new THREE.BoxGeometry(.42,1.3,.2),hair); hairBack.position.set(0,2.02,-.2); G.add(hairBack);
+  [[-.2],[.2]].forEach(([x])=>{ const strand=new THREE.Mesh(new THREE.BoxGeometry(.12,.95,.14),hair); strand.position.set(x,2.18,-.1); G.add(strand); });
+  const spear=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,3.0,8),bronze); spear.position.set(.54,1.4,0); G.add(spear);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.34,8),iron); tip.position.set(.54,2.95,0); G.add(tip);
   return G;
 }
 const MARS_NPCS=[
-  {id:'enyo', name:'Enyo', glyph:'♂', build:buildEnyo, x:-12, z:-7, face:0, radius:6}
+  {id:'enyo', name:'Enyo', glyph:'⚔', build:buildEnyo, x:-12, z:-7, face:0, radius:6}
 ];
 function spawnRealmNPCs(g){
   npcs=[];
@@ -1096,7 +1106,10 @@ function npcTick(dt){
     if(d<n.spec.radius&&d<nd){ nd=d; near=n; }
   }
   if(near){
-    near.grp.rotation.y=Math.atan2(player.position.x-near.grp.position.x,player.position.z-near.grp.position.z);
+    const target=Math.atan2(player.position.x-near.grp.position.x,player.position.z-near.grp.position.z);
+    let d2=target-near.grp.rotation.y;
+    d2=Math.atan2(Math.sin(d2),Math.cos(d2)); // shortest way around
+    near.grp.rotation.y+=d2*Math.min(1,dt*8); // smooth turn toward the player
   }
   realm.activeNPC=(near&&S.mode==='play')?near:null;
   const prompt=document.getElementById('npcPrompt');
