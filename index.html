@@ -1071,6 +1071,7 @@ function realmTick(dt,t){
       show('loreCard'); sfx.ui();
     }
   });
+  realmEnemyTick(dt,t);
   npcTick(dt);
   updateCompass();
 }
@@ -1303,6 +1304,154 @@ function updateCompass(){
   });
   for(let i=list.length;i<compassMarks.length;i++) compassMarks[i].style.display='none';
 }
+// ===== MARS: REALM ENEMIES =====
+// A separate spawn/AI layer from the arena's spawnEnemy. Realm enemies live in the
+// shared enemies[] so powers, basic attacks, dealDamage and status all reuse the
+// existing combat, but they are flagged userData.realm and skip the arena movement
+// loop and the arena slayEnemy path. realmEnemyTick (called from realmTick) handles
+// grounding on marsH, aggro/leash, ranged/flank AI, and contact damage. Packs of
+// these populate the Proving Grounds; clearing a pack feeds questAddProgress.
+const REALM_ENEMIES={
+  warShade:   {hp:34, speed:6.0, dmg:.45, aggro:18, leash:40, build:()=>buildRealmShade({})},
+  boltThrower:{hp:28, speed:5.0, dmg:.40, aggro:24, leash:50, ranged:true, shotCD:2.6, build:()=>buildRealmShade({archer:true})},
+  bloodhound: {hp:20, speed:10.0, dmg:.55, aggro:22, leash:35, flank:true, build:()=>buildBloodhound()}
+};
+const REALM_PACKS=[
+  {id:'p1', x:60,  z:-70,  mix:['warShade','warShade','warShade']},
+  {id:'p2', x:95,  z:-120, mix:['warShade','warShade','boltThrower']},
+  {id:'p3', x:40,  z:-150, mix:['warShade','bloodhound','bloodhound']},
+  {id:'p4', x:-70, z:-110, mix:['warShade','warShade','boltThrower','bloodhound']}
+];
+let realmPacks={};
+function buildBloodhound(){
+  const G=new THREE.Group();
+  const dark=M(0x150d11,{roughness:.92,transparent:true,opacity:.96});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.3,.26,1.5,10),dark);
+  body.rotation.x=Math.PI/2; body.position.y=.9; G.add(body);
+  const shoulder=sphere(dark,.4,1,.85,1); shoulder.position.set(0,.96,.35); G.add(shoulder);
+  const head=sphere(dark,.28,1.1,.9,1.2); head.position.set(0,1.0,.82); G.add(head);
+  const snout=new THREE.Mesh(new THREE.ConeGeometry(.15,.42,8),dark); snout.rotation.x=Math.PI/2; snout.position.set(0,.94,1.18); G.add(snout);
+  const eyes=[];
+  [[-.12],[.12]].forEach(([x])=>{ const e=sphere(glow(0xff6a2a,1.6),.06); e.position.set(x,1.08,1.0); G.add(e); eyes.push(e); });
+  const legs=[];
+  [[-.2,.4],[.2,.4],[-.2,-.45],[.2,-.45]].forEach(([x,z])=>{
+    const l=new THREE.Mesh(new THREE.CylinderGeometry(.07,.05,.95,6),dark); l.position.set(x,.46,z); G.add(l); legs.push(l);
+  });
+  const tail=new THREE.Mesh(new THREE.CylinderGeometry(.06,.02,.7,6),dark); tail.position.set(0,1.0,-.85); tail.rotation.x=.8; G.add(tail);
+  G.userData.eyes=eyes;
+  G.userData.anim=(dt,t,chasing)=>{
+    legs.forEach((l,i)=>{ l.rotation.x=Math.sin(t*(chasing?12:3)+i*1.7)*(chasing?.6:.18); });
+    eyes.forEach(e=>e.material.emissiveIntensity=1.3+Math.sin(t*6)*.4);
+  };
+  return G;
+}
+function buildRealmShade(opts){
+  opts=opts||{};
+  const g=buildWraith({accent:opts.archer?0xff7a2a:0xff3a2a});
+  g.traverse(m=>{ if(m.isMesh&&m.material&&m.material.transparent&&m.material.color){
+    m.material=m.material.clone(); m.material.color.lerp(new THREE.Color(0x3a0e14),.5); } });
+  if(opts.archer){
+    g.scale.set(.95,1.18,.95);
+    const bow=new THREE.Mesh(new THREE.TorusGeometry(.62,.05,8,24,Math.PI*1.15),
+      new THREE.MeshStandardMaterial({color:0x1a1126,emissive:0xff7a4a,emissiveIntensity:.6,roughness:.5}));
+    bow.position.set(.45,1.35,.45); bow.rotation.set(0,Math.PI/2,Math.PI/2-.4); g.add(bow);
+  }
+  return g;
+}
+function spawnRealmEnemy(kind,x,z,packId){
+  const spec=REALM_ENEMIES[kind]; if(!spec) return null;
+  const g=spec.build();
+  g.position.set(x,marsH(x,z),z);
+  Object.assign(g.userData,{
+    realm:true, kind, pack:packId||null, home:{x,z},
+    aggro:spec.aggro, leash:spec.leash, speed:spec.speed, fDmg:spec.dmg,
+    ranged:!!spec.ranged, flank:!!spec.flank, shotCD:spec.shotCD||0, shotT:1+Math.random()*1.5,
+    hp:spec.hp, hpMax:spec.hp, aspect:null, status:[], frozen:false, fleeT:0,
+    poisonWaves:0, markT:0, wob:Math.random()*10, aggroed:false, atkT:0
+  });
+  scene.add(g); enemies.push(g);
+  return g;
+}
+function spawnRealmPacks(){
+  realmPacks={};
+  REALM_PACKS.forEach(p=>{
+    realmPacks[p.id]=p.mix.length;
+    p.mix.forEach((kind,i)=>{
+      const a=i/p.mix.length*Math.PI*2;
+      spawnRealmEnemy(kind, p.x+Math.cos(a)*3.5, p.z+Math.sin(a)*3.5, p.id);
+    });
+  });
+}
+function realmEnemyTick(dt,t){
+  if(!player) return;
+  const up=new THREE.Vector3(0,1,0);
+  for(const e of enemies){
+    if(!e.userData.realm) continue;
+    const gy=()=>{ e.position.y=marsH(e.position.x,e.position.z); };
+    if(e.userData.frozen){ gy(); continue; }
+    if(e.userData.stunT>0){ e.userData.stunT-=dt; gy(); continue; }
+    if(e.userData.anim) e.userData.anim(dt,t,e.userData.aggroed);
+    const home=e.userData.home;
+    const dPlayer=hd(e.position,player.position);
+    const dHome=Math.hypot(e.position.x-home.x,e.position.z-home.z);
+    if(!e.userData.aggroed){ if(dPlayer<e.userData.aggro&&S.stealth<=0) e.userData.aggroed=true; }
+    else if(dHome>e.userData.leash||dPlayer>e.userData.leash*1.4||S.stealth>0) e.userData.aggroed=false;
+    let dir=null;
+    if(e.userData.aggroed){
+      const toT=new THREE.Vector3(player.position.x-e.position.x,0,player.position.z-e.position.z);
+      const dT=toT.length()||1; toT.multiplyScalar(1/dT);
+      if(e.userData.ranged){
+        if(dT>16) dir=toT.clone();
+        else if(dT<10) dir=toT.clone().negate();
+        else dir=new THREE.Vector3(-toT.z,0,toT.x).multiplyScalar(Math.sin(e.userData.wob)>0?1:-1);
+        e.userData.shotT-=dt;
+        if(e.userData.shotT<=0&&dT<26){ e.userData.shotT=e.userData.shotCD+Math.random(); fireShadowBolt(e.position,0,null,null,e.userData.fDmg); }
+      } else {
+        dir=toT.clone();
+        if(e.userData.flank&&dT>3.5) dir.applyAxisAngle(up,(Math.sin(e.userData.wob)>0?1:-1)*.7);
+      }
+    } else if(dHome>1.4){
+      dir=new THREE.Vector3(home.x-e.position.x,0,home.z-e.position.z).normalize().multiplyScalar(.55);
+    }
+    if(dir){
+      const slowK=(e.userData.satSlowT>0?.7:1);
+      e.position.x+=dir.x*e.userData.speed*slowK*dt;
+      e.position.z+=dir.z*e.userData.speed*slowK*dt;
+    }
+    for(const o of enemies){
+      if(o===e||!o.userData.realm) continue;
+      const dx=e.position.x-o.position.x, dz=e.position.z-o.position.z, d2=dx*dx+dz*dz;
+      if(d2>1e-6&&d2<2.56){ const d=Math.sqrt(d2), push=(1.6-d)*2.2*dt/d; e.position.x+=dx*push; e.position.z+=dz*push; }
+    }
+    gy();
+    e.lookAt(player.position.x,e.position.y,player.position.z);
+    if(e.userData.aggroed&&dPlayer<1.9&&S.dashT<=0){
+      e.userData.atkT-=dt;
+      if(e.userData.atkT<=0){
+        e.userData.atkT=.9;
+        if(S.reflect>0){ shockwave(player.position,0xbcd4ff,3); killEnemy(e); }
+        else { hurt(e.userData.fDmg);
+          const kb=new THREE.Vector3(e.position.x-player.position.x,0,e.position.z-player.position.z).normalize();
+          e.position.x+=kb.x*2.5; e.position.z+=kb.z*2.5; }
+      }
+    }
+    if(e.userData.satSlowT>0) e.userData.satSlowT-=dt;
+  }
+}
+function realmEnemySlain(e,tags){
+  sfx.kill(); smokePuff(e.position,4); sparkle(e.position.clone().setY(e.position.y+1.2),0xff7a4a);
+  if(attackTarget===e) attackTarget=null;
+  if(hoverTarget===e) hoverTarget=null;
+  scene.remove(e); const i=enemies.indexOf(e); if(i>=0) enemies.splice(i,1);
+  const pk=e.userData.pack;
+  if(pk&&realmPacks[pk]!==undefined){
+    realmPacks[pk]=Math.max(0,realmPacks[pk]-1);
+    if(realmPacks[pk]===0){
+      if(questState('firstBlood')==='active') questAddProgress('firstBlood',1);
+      toast('A war-band lies broken.');
+    }
+  }
+}
 function buildMarsRealm(){
   clearScene();
   S.got=0;
@@ -1490,6 +1639,7 @@ function buildMarsRealm(){
   scene.add(g);
   spawnHero(S.hero,new THREE.Vector3(0,marsH(0,0),0),Math.PI);
   spawnRealmNPCs(g);
+  spawnRealmPacks();
   realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null,dialog:null};
 }
 function clearScene(){
@@ -4140,6 +4290,7 @@ function slayEnemy(e,tags){
   }
   if(e.userData.herald){ damageHerald(e,30,{power:true}); return; }
   if(e.userData.bossPart||e===boss){ damageBoss(30); return; }
+  if(e.userData.realm){ realmEnemySlain(e,tags); return; }
   sparkle(e.position.clone().setY(1.2),SIGNS[S.level].accent);
   smokePuff(e.position,4);
   sfx.kill();
@@ -5912,6 +6063,7 @@ function animate(){
       if(e.userData.omen){ omenBehave(e,dt,t); return; }
       if(e.userData.herald){ heraldBehave(e,dt,t); return; }
       if(e.userData.boss){ bossBehave(e,dt,t); return; }
+      if(e.userData.realm) return; // realm enemies are driven by realmEnemyTick
       const chasing = !(S.stealth>0&&!(S.decoy>0&&decoyMesh));
       if(e.userData.frozen) return;
       if(e.userData.stunT>0){ e.userData.stunT-=dt; return; }

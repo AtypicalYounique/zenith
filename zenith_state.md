@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 4 (compass HUD).
+2026-06-17, Mars World build track step 5 (realm enemy spawning).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -71,10 +71,26 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   waypoint target (70,-110) in the Proving Grounds. Verified in browser: 7 checks
   (centered cardinal matches facing across N/E/S/W; NPC marker shown and centers
   when facing Enyo; quest waypoint appears when active). Harness/gates pass.
-- Next: step 5, realm enemy spawning (War Shades, Bolt Throwers, Bloodhounds via a
-  new spawnRealmEnemy/realmEnemyTick, aggro/leash, grounded on marsH, outside the
-  Landing; reuse the existing combat for damage/health/powers). Wire kills to
-  questAddProgress('firstBlood') so The First Blood can finally complete.
+- Done: step 5, realm enemy spawning. New `// ===== MARS: REALM ENEMIES =====`
+  block. REALM_ENEMIES defines War Shade (melee), Bolt Thrower (ranged, fires
+  fireShadowBolt), Bloodhound (fast flanker) with hp/speed/dmg/aggro/leash.
+  spawnRealmEnemy flags userData.realm and puts them in the shared enemies[] so
+  powers/basic-attacks/dealDamage/status all reuse the existing combat. They are
+  skipped in the arena movement loop (`if(e.userData.realm) return;`) and branched
+  out of slayEnemy (realmEnemySlain) so no arena XP/respawn. realmEnemyTick (called
+  from realmTick) grounds them on marsH, runs aggro/leash, ranged-strafe and flank
+  AI, separation, lookAt, and contact damage (hurt). Meshes: buildRealmShade reuses
+  buildWraith tinted crimson (+ bow for archers); buildBloodhound is a new low
+  quadruped. REALM_PACKS spawns 4 packs (13 enemies) in the Proving Grounds on
+  realm build (realmPacks counts members); clearing a pack while firstBlood is
+  active calls questAddProgress, so 3 packs completes the quest. Re-entering the
+  realm respawns the packs (no mid-session respawn; clearScene wipes enemies[]).
+  Verified in browser: 11 checks (counts/kinds, aggro, approach, grounding, leash,
+  pack->progress, quest done after 3 packs, persisted). Harness/gates pass.
+- Possible polish later: the Bloodhound mesh reads as a low dark shape but less
+  distinct than the shades; could get a dedicated visual pass like Enyo did.
+- Next: step 6, loot drops (War-Marks auto-pickup to HEROES[i].mars.warMarks, plus
+  occasional gear/materials; walk-over pickup like shards; War-Marks HUD counter).
 
 ## Where things stand
 
