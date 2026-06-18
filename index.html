@@ -1151,7 +1151,24 @@ function realmTick(dt,t){
   realmPickupTick(dt,t);
   bountyTick(dt,t);
   npcTick(dt);
+  dungeonGateTick();
   updateCompass();
+}
+function dungeonGateTick(){
+  if(!realm||!player) return;
+  if(realmGateBronze){
+    const vb=questState('voiceInBronze');
+    const accessible=vb==='active'||vb==='done'||(HEROES&&heroMars().dungeons.bronzeJar);
+    const d=Math.hypot(player.position.x-realmGateBronze.x,player.position.z-realmGateBronze.z);
+    if(accessible&&d<5&&S.mode==='play'&&!realm.activeNPC){
+      realm.nearGate='bronzeJar';
+      const p=document.getElementById('npcPrompt');
+      p.textContent=(IS_TOUCH?'Tap to enter the Bronze Jar':'Press E to enter the Bronze Jar');
+      p.classList.remove('hidden');
+      return;
+    }
+  }
+  if(realm.nearGate){ realm.nearGate=null; }
 }
 // ===== MARS: NPC SYSTEM =====
 // An NPC is a positioned mesh group with a floating name label and an interaction
@@ -1353,6 +1370,18 @@ const MARS_DIALOGUE={
     ]},
     questDone:{text:'Three packs broken. Good. They moved with one mind, and that means someone’s giving the orders. We’ll find who. Rest, then we go deeper.', choices:[
       {label:'(Step back)', end:true}
+    ]},
+    bronzeOffer:{text:'Three packs broken, and they moved as one. Someone gives the orders now. And there’s worse: screaming, from the east, where the old prison sits. The Bronze Jar. Thirteen months they kept my brother in it, and the rage never left. Go and see what wears that sound now.', choices:[
+      {label:'I’ll find the Bronze Jar.', accept:'voiceInBronze', end:true},
+      {label:'Not yet.', goto:'hub'}
+    ]},
+    bronzeActive:{text:'The jar lies east, past the totems. Climb down into it. Whatever’s been screaming, end it, and bring me back the truth of it.', choices:[
+      {label:'On my way.', end:true},
+      {label:'What is the Bronze Jar?', goto:'bronzeLore'}
+    ]},
+    bronzeLore:{text:'Two giants, Otus and Ephialtes, caught my brother and sealed him in a jar of bronze. Thirteen months he wore the dark, until Hermes drew him out near to nothing. He endured. That is the whole of it, and the hardest thing he ever did.', goto:'bronzeActive'},
+    bronzeDone:{text:'You went into the jar and came out wearing its silence. The Shard you carry was his unbroken will: endurance, the first of the trials. Rest. The next road is longer.', choices:[
+      {label:'(Step back)', end:true}
     ]}
   }},
   harmonia:{ start:'intro1', nodes:{
@@ -1397,8 +1426,13 @@ function openDialog(npc){
   document.getElementById('ndName').textContent=npc.spec.name;
   let start=def.start;
   if(npc.spec.id==='enyo'){
-    const st=questState('firstBlood');
-    if(st==='done') start='questDone'; else if(st==='active') start='questActive';
+    const fb=questState('firstBlood'), vb=questState('voiceInBronze');
+    if(fb==='active') start='questActive';
+    else if(fb==='done'){
+      if(vb==='locked') start='bronzeOffer';
+      else if(vb==='active') start='bronzeActive';
+      else start='bronzeDone';
+    }
   }
   renderDialogNode(start);
   show('npcDialog'); sfx.ui();
@@ -1441,6 +1475,9 @@ const MARS_QUESTS={
   firstBlood:{ name:'The First Blood', giver:'enyo',
     objective:'Break War Shade packs creeping toward the Landing.',
     goal:3, unit:'Packs broken', target:{x:70,z:-110} },
+  voiceInBronze:{ name:'The Voice in the Bronze', giver:'enyo',
+    objective:'Descend into the Bronze Jar to the east and end what screams within.',
+    goal:1, unit:'Bronze Jar', target:{x:120,z:-70} },
   // Alectryon's bounties. Lifecycle: locked (offerable) -> active -> done (ready to
   // claim). Claiming grants War-Marks + XP, bumps mars.bounties[id], and relocks it so
   // it can be taken again. ironHarvest reads a live material count; the rest accumulate
@@ -1572,7 +1609,8 @@ function updateCompass(){
 const REALM_ENEMIES={
   warShade:   {hp:34, speed:6.0, dmg:.45, aggro:18, leash:40, build:()=>buildRealmShade({})},
   boltThrower:{hp:28, speed:5.0, dmg:.40, aggro:24, leash:50, ranged:true, shotCD:2.6, build:()=>buildRealmShade({archer:true})},
-  bloodhound: {hp:20, speed:10.0, dmg:.55, aggro:22, leash:35, flank:true, build:()=>buildBloodhound()}
+  bloodhound: {hp:20, speed:10.0, dmg:.55, aggro:22, leash:35, flank:true, build:()=>buildBloodhound()},
+  furySpirit: {hp:24, speed:7.0, dmg:.5,  aggro:80, leash:140, build:()=>buildFurySpirit()}
 };
 const REALM_PACKS=[
   {id:'p1', x:60,  z:-70,  mix:['warShade','warShade','warShade']},
@@ -1619,7 +1657,7 @@ function buildRealmShade(opts){
 function spawnRealmEnemy(kind,x,z,packId){
   const spec=REALM_ENEMIES[kind]; if(!spec) return null;
   const g=spec.build();
-  g.position.set(x,marsH(x,z),z);
+  g.position.set(x,groundH(x,z),z);
   Object.assign(g.userData,{
     realm:true, kind, pack:packId||null, home:{x,z},
     aggro:spec.aggro, leash:spec.leash, speed:spec.speed, fDmg:spec.dmg,
@@ -1645,7 +1683,8 @@ function realmEnemyTick(dt,t){
   const up=new THREE.Vector3(0,1,0);
   for(const e of enemies){
     if(!e.userData.realm) continue;
-    const gy=()=>{ e.position.y=marsH(e.position.x,e.position.z); };
+    if(e.userData.dungeonBoss) continue; // the Wrath Echo runs its own dungeonBossTick
+    const gy=()=>{ e.position.y=groundH(e.position.x,e.position.z); };
     if(e.userData.frozen){ gy(); continue; }
     if(e.userData.stunT>0){ e.userData.stunT-=dt; gy(); continue; }
     if(e.userData.anim) e.userData.anim(dt,t,e.userData.aggroed);
@@ -1705,6 +1744,12 @@ function realmEnemySlain(e,tags){
   if(Math.random()<.35) dropMaterial(({warShade:'ironDust',boltThrower:'warStone',bloodhound:'fangShard'}[kind]||'ironDust'), e.position.clone());
   if(Math.random()<.12) dropGear(Math.random()<.5?'worn_helm':'worn_legs', e.position.clone());
   scene.remove(e); const i=enemies.indexOf(e); if(i>=0) enemies.splice(i,1);
+  if(e.userData.dungeonBoss){ onWrathEchoDown(); return; }
+  if(e.userData.fury&&dungeon){
+    dungeon.adds=Math.max(0,dungeon.adds-1);
+    if(dungeon.phase==='waves') checkFuryWave();
+    return;
+  }
   if(e.userData.vigil&&realmVigil.running){
     realmVigil.alive=Math.max(0,realmVigil.alive-1);
     if(realmVigil.alive===0){
@@ -1746,7 +1791,7 @@ function dropMaterial(kind,pos){
   const info=MAT_INFO[kind]; if(!info) return;
   const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.28,0),
     new THREE.MeshStandardMaterial({color:info.color,emissive:info.color,emissiveIntensity:.5,roughness:.5,metalness:.3}));
-  m.position.set(pos.x,marsH(pos.x,pos.z)+.7,pos.z);
+  m.position.set(pos.x,groundH(pos.x,pos.z)+.7,pos.z);
   m.userData={mat:kind, baseY:m.position.y};
   scene.add(m); realmPickups.push(m);
 }
@@ -1858,7 +1903,7 @@ function dropGear(id,pos){
   if(!MARS_GEAR[id]) return;
   const m=new THREE.Mesh(new THREE.OctahedronGeometry(.34,0),
     new THREE.MeshStandardMaterial({color:0xe8c46b,emissive:0xe8c46b,emissiveIntensity:.45,roughness:.4,metalness:.5}));
-  m.position.set(pos.x,marsH(pos.x,pos.z)+.8,pos.z);
+  m.position.set(pos.x,groundH(pos.x,pos.z)+.8,pos.z);
   m.userData={gear:id, baseY:m.position.y};
   scene.add(m); realmPickups.push(m);
 }
@@ -2220,6 +2265,230 @@ function bountyTick(dt,t){
     if(!v.running&&v.cool<=0&&v.wave<3&&near) startVigilWave();
   }
 }
+// ===== MARS: DUNGEON ZONES =====
+// The Sacred Places load as separate scenes via S.zone (the open realm is S.zone===
+// null). enterZone clears the scene and builds the dungeon; exitZone rebuilds the open
+// realm and drops the hero back at the entrance. groundH abstracts the floor height so
+// the shared realm-enemy AI grounds correctly in either place (marsH outside, a flat
+// floor inside). Step 11 ships the Bronze Jar: fury-spirit waves, the Wrath Echo (which
+// echoes your own powers back after a delay), and the Shard of Endurance relic.
+let dungeon=null, realmGateBronze=null;
+const BRONZE_ENTRANCE=[120,0,-70];
+function bronzeFloorH(x,z){ return 0; }
+function groundH(x,z){ return S.zone==='bronzeJar'?bronzeFloorH(x,z):marsH(x,z); }
+function markCast(slot){ S.lastPowerT=clock.elapsedTime; S.lastPowerSlot=slot; S.combatLast=clock.elapsedTime; }
+function buildBronzeJarVessel(){
+  const G=new THREE.Group();
+  const bronze=M(0x7a5a2a,{metalness:.7,roughness:.45});
+  const belly=new THREE.Mesh(new THREE.SphereGeometry(4,24,18),bronze); belly.scale.set(1,1.25,1); belly.position.y=4.2; G.add(belly);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(1.8,2.6,2.4,20),bronze); neck.position.y=8; G.add(neck);
+  const lip=new THREE.Mesh(new THREE.TorusGeometry(1.9,.35,10,22),bronze); lip.rotation.x=Math.PI/2; lip.position.y=9.1; G.add(lip);
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.4,2.2,1.2,16),bronze); base.position.y=.6; G.add(base);
+  const crack=new THREE.Mesh(new THREE.BoxGeometry(.5,7,.3),glow(0xff5a2a,1.3)); crack.position.set(1.6,4.5,3.2); crack.rotation.z=.2; G.add(crack);
+  const innerGlow=new THREE.Mesh(new THREE.SphereGeometry(2.4,16,12),new THREE.MeshBasicMaterial({color:0xff7a3a,transparent:true,opacity:.5})); innerGlow.position.y=8.2; G.add(innerGlow);
+  return G;
+}
+function buildFurySpirit(){
+  const g=buildWraith({accent:0xff3a2a});
+  g.traverse(m=>{ if(m.isMesh&&m.material&&m.material.transparent&&m.material.color){ m.material=m.material.clone(); m.material.color.lerp(new THREE.Color(0x4a0e0e),.5); }});
+  g.scale.set(.92,1.06,.92);
+  return g;
+}
+function buildWrathEcho(){
+  const G=new THREE.Group();
+  const body=M(0x2a0e0e,{roughness:.7,transparent:true,opacity:.96});
+  const ember=glow(0xff5a2a,1.0);
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(1.6,1),body); core.position.y=3.0; core.scale.set(1,1.5,1); G.add(core);
+  const head=new THREE.Mesh(new THREE.IcosahedronGeometry(.9,1),body); head.position.y=5.2; G.add(head);
+  const eyes=[];
+  [[-.3],[.3]].forEach(([x])=>{ const e=sphere(ember,.16); e.position.set(x,5.3,.7); G.add(e); eyes.push(e); });
+  const maw=new THREE.Mesh(new THREE.SphereGeometry(.4,10,8),glow(0xff8a3a,1.4)); maw.position.set(0,4.9,.7); maw.scale.set(1,.6,.5); G.add(maw);
+  [[-1.6,.5],[1.6,-.5]].forEach(([x,r])=>{ const arm=new THREE.Mesh(new THREE.CylinderGeometry(.4,.2,3,8),body); arm.position.set(x,3.2,0); arm.rotation.z=r; G.add(arm); });
+  for(let i=0;i<5;i++){ const v=new THREE.Mesh(new THREE.BoxGeometry(.12,1.4,.12),ember); v.position.set((_nh(i,7)-.5)*2,2.5+_nh(i,3)*2,(_nh(i,11)-.5)*1.5); v.rotation.z=(_nh(i,5)-.5); G.add(v); }
+  G.userData.eyes=eyes;
+  G.userData.anim=(dt,t)=>{ eyes.forEach(e=>e.material.emissiveIntensity=.8+Math.sin(t*5)*.4); core.rotation.y+=dt*.3; };
+  return G;
+}
+function buildShardPedestal(){
+  const G=new THREE.Group();
+  const stone=M(0x3a2c22,{roughness:.9});
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.0,1.0,8),stone); base.position.y=.5; G.add(base);
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(.5,.8,.3,8),stone); top.position.y=1.1; G.add(top);
+  const shard=new THREE.Mesh(new THREE.OctahedronGeometry(.5,0),glow(0xff7a3a,1.2,{metalness:.5,roughness:.3}));
+  shard.position.y=2.2; G.add(shard);
+  G.userData.shard=shard;
+  return G;
+}
+function buildBronzeEntrance(){
+  const G=new THREE.Group();
+  const bronze=M(0x6a4a24,{metalness:.65,roughness:.5});
+  const mouth=new THREE.Mesh(new THREE.CircleGeometry(2.3,24),new THREE.MeshBasicMaterial({color:0x070302}));
+  mouth.rotateX(-Math.PI/2); mouth.position.y=.12; G.add(mouth);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(2.5,.5,12,24),bronze); ring.rotation.x=Math.PI/2; ring.position.y=.3; G.add(ring);
+  const lean=new THREE.Mesh(new THREE.SphereGeometry(3,18,14),bronze); lean.scale.set(1,1.3,1); lean.position.set(3.6,1.4,-1); lean.rotation.z=.7; G.add(lean);
+  const crack=new THREE.Mesh(new THREE.BoxGeometry(.4,4,.25),glow(0xff5a2a,.9)); crack.position.set(3.1,2.1,1); crack.rotation.z=1.0; G.add(crack);
+  return G;
+}
+function buildBronzeJar(){
+  clearScene();
+  npcs=[]; realmPickups=[];
+  scene.background=new THREE.Color(0x0a0506);
+  scene.fog=new THREE.FogExp2(0x1a0a08,.02);
+  const g=new THREE.Group();
+  hemiLight=new THREE.HemisphereLight(0x3a1a14,0x080404,.5); g.add(hemiLight);
+  const core=new THREE.PointLight(0xff7a3a,2.2,90,1.4); core.position.set(0,7,-14); g.add(core);
+  const rim=new THREE.DirectionalLight(0x6a4090,.35); rim.position.set(-20,30,30); g.add(rim);
+  const floor=new THREE.Mesh(new THREE.CircleGeometry(55,48),new THREE.MeshStandardMaterial({color:0x241510,roughness:.96,metalness:.08}));
+  floor.rotateX(-Math.PI/2); g.add(floor);
+  const wall=new THREE.Mesh(new THREE.CylinderGeometry(55,55,46,40,1,true),new THREE.MeshStandardMaterial({color:0x1a100c,roughness:1,side:THREE.BackSide}));
+  wall.position.y=23; g.add(wall);
+  const ceil=new THREE.Mesh(new THREE.SphereGeometry(56,28,14,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0x120a07,roughness:1,side:THREE.BackSide}));
+  ceil.position.y=46; ceil.scale.y=.5; g.add(ceil);
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(2,5,40,16,1,true),new THREE.MeshBasicMaterial({color:0x6a4a30,transparent:true,opacity:.08,side:THREE.DoubleSide,depthWrite:false})); shaft.position.set(0,20,30); g.add(shaft);
+  const jar=buildBronzeJarVessel(); jar.position.set(0,0,-16); g.add(jar);
+  for(let i=0;i<26;i++){ const a=_nh(i,3.3)*Math.PI*2,r=8+_nh(i,7.7)*42; const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(.4+_nh(i,5.5)*1.4,0),M(0x241812,{roughness:1})); rk.position.set(Math.cos(a)*r,0,Math.sin(a)*r); rk.rotation.set(_nh(i,1),_nh(i,2),_nh(i,4)); g.add(rk); }
+  const eN=120, eG=new THREE.BufferGeometry(), eP=new Float32Array(eN*3);
+  for(let i=0;i<eN;i++){ eP[i*3]=(_nh(i,9)-.5)*90; eP[i*3+1]=_nh(i,13)*20; eP[i*3+2]=(_nh(i,17)-.5)*90; }
+  eG.setAttribute('position',new THREE.BufferAttribute(eP,3));
+  g.add(new THREE.Points(eG,new THREE.PointsMaterial({color:0xff7a3a,size:.5,transparent:true,opacity:.6,depthWrite:false})));
+  const pedestal=buildShardPedestal(); pedestal.position.set(0,0,-9); pedestal.visible=false; g.add(pedestal);
+  const exit=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.6,.6,16),M(0x3a2a1e,{roughness:.9})); exit.position.set(0,.3,32); g.add(exit);
+  const exitGlow=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2,8,16,1,true),new THREE.MeshBasicMaterial({color:0x9a7a40,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false})); exitGlow.position.set(0,4,32); g.add(exitGlow);
+  scene.add(g);
+  spawnHero(S.hero,new THREE.Vector3(0,0,28),Math.PI);
+  applyMarsGear();
+  dungeon={group:g,t:0,core,emberGeo:eG,emberArr:eP,emberN:eN,jar,pedestal,exit:{x:0,z:32},boss:null,phase:'waves',wave:0,adds:0,relicTaken:false,nearExit:false};
+  startFuryWave();
+  hide('compass'); show('marksHUD'); updateMarksHUD(); updateQuestTracker();
+}
+function enterZone(zoneId){
+  if(zoneId!=='bronzeJar'||S.mode!=='play') return;
+  S.zoneReturn={x:BRONZE_ENTRANCE[0],z:BRONZE_ENTRANCE[2]};
+  hide('npcPrompt'); if(realm) realm.nearGate=null;
+  S.zone=zoneId; sfx.ui();
+  buildBronzeJar();
+  toast('You climb down into the Bronze Jar.');
+}
+function exitZone(){
+  const ret=S.zoneReturn||{x:BRONZE_ENTRANCE[0],z:BRONZE_ENTRANCE[2]};
+  S.zone=null; dungeon=null; hide('npcPrompt'); sfx.ui();
+  buildMarsRealm();
+  if(player) player.position.set(ret.x,marsH(ret.x,ret.z+8),ret.z+8);
+  applyMarsGear();
+  show('compass'); updateQuestTracker(); updateMarksHUD();
+  toast('You climb back into the red light.');
+}
+const TOTAL_FURY_WAVES=2;
+function startFuryWave(){
+  if(!dungeon) return;
+  dungeon.wave+=1; dungeon.adds=0;
+  const n=3+dungeon.wave;
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2, r=30+_nh(i,3)*14;
+    const e=spawnRealmEnemy('furySpirit', Math.cos(a)*r, -16+Math.sin(a)*r, null);
+    if(e){ e.userData.fury=true; e.userData.aggroed=true; dungeon.adds++; }
+  }
+  toast('The dark screams. Wave '+dungeon.wave+' of '+TOTAL_FURY_WAVES+'.');
+}
+function checkFuryWave(){
+  if(!dungeon||dungeon.phase!=='waves') return;
+  if(dungeon.adds>0) return;
+  if(dungeon.wave<TOTAL_FURY_WAVES){ setTimeout(()=>{ if(dungeon&&dungeon.phase==='waves'&&dungeon.adds===0) startFuryWave(); },1800); }
+  else { dungeon.phase='boss'; setTimeout(()=>{ if(dungeon&&dungeon.phase==='boss'&&!dungeon.boss) spawnWrathEcho(); },1400); }
+}
+function summonFuryAdds(n){
+  if(!dungeon||!dungeon.boss) return;
+  for(let i=0;i<n;i++){ const a=_nh(i,3)*Math.PI*2, r=6+_nh(i,7)*3;
+    const e=spawnRealmEnemy('furySpirit', dungeon.boss.position.x+Math.cos(a)*r, dungeon.boss.position.z+Math.sin(a)*r, null);
+    if(e){ e.userData.fury=true; e.userData.aggroed=true; dungeon.adds++; }
+  }
+}
+function spawnWrathEcho(){
+  const b=buildWrathEcho(); b.position.set(0,0,-12); scene.add(b); enemies.push(b);
+  Object.assign(b.userData,{
+    realm:true, dungeonBoss:true, kind:'wrathEcho', home:{x:0,z:-12},
+    hp:520, hpMax:520, speed:3.4, fDmg:.7, aspect:null, status:[], frozen:false,
+    atkT:2.4, echoQ:[], echoSeenT:0, add66:false, add33:false
+  });
+  const bg=new THREE.Sprite(new THREE.SpriteMaterial({color:0x07050f,transparent:true,opacity:0})); bg.visible=false; b.add(bg); b.userData.hpBg=bg;
+  const fg=new THREE.Sprite(new THREE.SpriteMaterial({color:0xff4a5c,transparent:true,opacity:0})); fg.visible=false; b.add(fg); b.userData.hpFg=fg;
+  dungeon.boss=b;
+  document.getElementById('bossName').textContent='The Wrath Echo · what the rage left behind';
+  document.getElementById('bossBar').style.width='100%';
+  document.getElementById('bossWrap').style.display='block';
+  sfx.bossRoar&&sfx.bossRoar();
+  toast('The rage takes a shape. It remembers your every blow.');
+}
+function doWrathEcho(b,slot){
+  const cols=[[0x6aa8ff,0x9ad0ff],[0xff7a4a,0xffb36a],[0x9adb8a,0xc8f0b8],[0xff5a3c,0xffb36a],[0xc89bff,0xe0c8ff]];
+  const c=cols[(((slot||0)%cols.length)+cols.length)%cols.length];
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.4,.12,8,24),new THREE.MeshBasicMaterial({color:c[0]}));
+  ring.position.copy(b.position).setY(2.6); ring.rotation.x=Math.PI/2; scene.add(ring);
+  setTimeout(()=>scene.remove(ring),420);
+  fireShadowBolt(b.position.clone().setY(2.4),0,c[0],c[1],.6);
+}
+function dungeonBossTick(dt,t){
+  const b=dungeon&&dungeon.boss; if(!b||!player) return;
+  const bu=b.userData;
+  b.position.y=groundH(b.position.x,b.position.z);
+  if(bu.anim) bu.anim(dt,t);
+  const to=new THREE.Vector3(player.position.x-b.position.x,0,player.position.z-b.position.z);
+  const d=to.length()||1; to.multiplyScalar(1/d);
+  b.lookAt(player.position.x,b.position.y,player.position.z);
+  if(d>4.5){ b.position.x+=to.x*bu.speed*dt; b.position.z+=to.z*bu.speed*dt; }
+  bu.atkT-=dt;
+  if(d<6&&bu.atkT<=0){
+    bu.atkT=2.8; const c=b.position.clone();
+    shockwave(c,0xff6a2a,2);
+    setTimeout(()=>{ if(dungeon&&dungeon.boss===b&&S.mode==='play'){ shockwave(c,0xff3a2a,7); flashScreen(); if(hd(player.position,c)<7) hurt(bu.fDmg*1.3); } },640);
+  }
+  if(S.lastPowerT&&S.lastPowerT!==bu.echoSeenT){ bu.echoSeenT=S.lastPowerT; bu.echoQ.push({slot:S.lastPowerSlot||0,at:t+1.5}); }
+  for(let i=bu.echoQ.length-1;i>=0;i--){ if(t>=bu.echoQ[i].at){ const ec=bu.echoQ.splice(i,1)[0]; doWrathEcho(b,ec.slot); } }
+  if(!bu.add66&&bu.hp<=bu.hpMax*.66){ bu.add66=true; summonFuryAdds(2); toast('The rage splits and screams.'); }
+  if(!bu.add33&&bu.hp<=bu.hpMax*.33){ bu.add33=true; summonFuryAdds(3); }
+  const bar=document.getElementById('bossBar'); if(bar) bar.style.width=Math.max(0,bu.hp/bu.hpMax*100)+'%';
+}
+function onWrathEchoDown(){
+  if(!dungeon) return;
+  dungeon.boss=null; dungeon.phase='done';
+  document.getElementById('bossWrap').style.display='none';
+  if(dungeon.pedestal) dungeon.pedestal.visible=true;
+  starburst(new THREE.Vector3(0,2,-12),0xff8a4a); flashScreen();
+  toast('The screaming stops. Something it guarded waits at the jar.');
+}
+function dungeonReward(){
+  if(!dungeon||dungeon.relicTaken) return;
+  dungeon.relicTaken=true;
+  if(dungeon.pedestal&&dungeon.pedestal.userData.shard) dungeon.pedestal.userData.shard.visible=false;
+  starburst(player.position.clone().setY(1.5),0xff8a4a); sfx.collect(3);
+  heroMars().dungeons.bronzeJar=true;
+  if(questState('voiceInBronze')==='active'){ questProgress.voiceInBronze=1; setQuest('voiceInBronze','done'); }
+  claimRelic('mars_endure');
+  saveHeroes();
+  toast('The Shard of Endurance is yours. Climb back and tell Enyo.');
+}
+function dungeonTick(dt,t){
+  if(!dungeon||!player) return;
+  dungeon.t+=dt;
+  if(dungeon.emberGeo){ const ep=dungeon.emberArr; for(let i=0;i<dungeon.emberN;i++){ ep[i*3+1]+=dt*1.6; if(ep[i*3+1]>22) ep[i*3+1]=.5; } dungeon.emberGeo.attributes.position.needsUpdate=true; }
+  if(dungeon.core) dungeon.core.intensity=2.0+Math.sin(t*3)*.4;
+  realmEnemyTick(dt,t);
+  realmPickupTick(dt,t);
+  if(dungeon.boss) dungeonBossTick(dt,t);
+  if(dungeon.phase==='done'&&!dungeon.relicTaken&&dungeon.pedestal){
+    const p=dungeon.pedestal.position;
+    if(Math.hypot(player.position.x-p.x,player.position.z-p.z)<3) dungeonReward();
+  }
+  // exit stairway: available once the relic is claimed, or to flee before the boss
+  const ex=dungeon.exit, canLeave=(dungeon.relicTaken||dungeon.phase==='waves');
+  const dE=Math.hypot(player.position.x-ex.x,player.position.z-ex.z);
+  const prompt=document.getElementById('npcPrompt');
+  if(canLeave&&dE<4&&S.mode==='play'){
+    dungeon.nearExit=true;
+    prompt.textContent=(IS_TOUCH?'Tap to climb out':'Press E to climb out');
+    prompt.classList.remove('hidden');
+  } else { dungeon.nearExit=false; if(S.mode==='play') prompt.classList.add('hidden'); }
+}
 function buildMarsRealm(){
   clearScene();
   S.got=0;
@@ -2410,8 +2679,10 @@ function buildMarsRealm(){
   spawnRealmNPCs(g);
   spawnRealmPacks();
   spawnBountyObjects(g);
+  { const be=buildBronzeEntrance(); be.position.set(BRONZE_ENTRANCE[0],marsH(BRONZE_ENTRANCE[0],BRONZE_ENTRANCE[2]),BRONZE_ENTRANCE[2]); g.add(be);
+    realmGateBronze={x:BRONZE_ENTRANCE[0],z:BRONZE_ENTRANCE[2]}; }
   realmPickups=[];
-  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null,dialog:null};
+  realm={group:g,sites,phobos,deimos,dust:dP,dustGeo:dG,t:0,activeNPC:null,dialog:null,nearGate:null};
 }
 function clearScene(){
   while(scene.children.length) scene.remove(scene.children[0]);
@@ -3578,6 +3849,8 @@ RELICS.push(
  {id:'uranus_c',planet:'uranus',slot:'charm',name:"Prometheus' Brand",k:'cd',v:.15,ds:'powers return 15% sooner'},
  {id:'neptune_a',planet:'neptune',slot:'armor',name:'Pearl of the Drowned Light',k:'dr',v:.10,ds:'10% less damage taken'},
  {id:'pluto_w',planet:'pluto',slot:'weapon',name:'The Obol Edge',k:'pdmg',v:.22,ds:'powers strike 22% harder'});
+RELICS.push(
+ {id:'mars_endure',planet:'mars',slot:'charm',name:'Shard of Endurance',k:'dr',v:0,ds:'the longer you hold the line, the less they hurt you'});
 const RELIC_BY_ID={}; RELICS.forEach(r=>RELIC_BY_ID[r.id]=r);
 let relicDrops=[];
 function gearBonus(key,hero){
@@ -4282,6 +4555,7 @@ function thaw(e){
 function usePower(){
   if(S.plutoT>0) return;
   if(S.cdLeft>0||S.mode!=='play') return;
+  markCast(0);
   if(!spendMana(MANA_COST[0])) return;
   const L=SIGNS[S.hero];
   S.cdLeft=L.cd*rankCD(S.hero,0)*(1-gearBonus('cd')-ridgeBonus('cd')); sfx.power(L.ptype);
@@ -4487,6 +4761,7 @@ function restoreOpacity(){
 function usePower4(){
   if(S.plutoT>0) return;
   if(S.cd4Left>0||S.mode!=='play') return;
+  markCast(3);
   if(!powerKnown(S.hero,3)){ toast('The fourth gate opens at level 9'); return; }
   if(!spendMana(MANA_COST[3])) return;
   S.cd4Left=14*rankCD(S.hero,3)*(1-gearBonus('cd')-ridgeBonus('cd')); sfx.power('burst');
@@ -4547,6 +4822,7 @@ function usePower4(){
 function usePower5(){
   if(S.plutoT>0) return;
   if(S.cd5Left>0||S.mode!=='play') return;
+  markCast(4);
   if(!powerKnown(S.hero,4)){ toast('The fifth gate opens at level 12'); return; }
   if(!spendMana(MANA_COST[4])) return;
   S.cd5Left=18*rankCD(S.hero,4)*(1-gearBonus('cd')-ridgeBonus('cd')); sfx.power('burst');
@@ -4589,6 +4865,7 @@ function usePower5(){
 function usePower2(){
   if(S.plutoT>0) return;
   if(S.cd2Left>0||S.mode!=='play') return;
+  markCast(1);
   if(!powerKnown(S.hero,1)){ toast('The second power awakens at level 3'); return; }
   if(!spendMana(MANA_COST[1])) return;
   const L=SIGNS[S.hero], A=ASC[S.hero];
@@ -4819,6 +5096,7 @@ function aimDir(){
 function usePower3(){
   if(S.plutoT>0) return;
   if(S.cd3Left>0||S.mode!=='play') return;
+  markCast(2);
   if(!powerKnown(S.hero,2)){ toast('The third power awakens at level 6'); return; }
   if(!spendMana(MANA_COST[2])) return;
   const L=SIGNS[S.hero], A2=ASC2[S.hero];
@@ -5187,6 +5465,7 @@ function dmgNumber(pos,n,color){
 function dealDamage(e,amt,tags){
   tags=tags||{};
   if(!e||!e.userData) return;
+  S.combatLast=clock.elapsedTime;
   if(e.userData.omen){
     sparkle(e.position.clone().setY(5),0x8a8a9a,.4);
     if(Math.random()<.3) toast('Your blows pass through the storm');
@@ -5250,10 +5529,14 @@ function blockChance(){
 }
 function damageReduction(){
   const a=HEROES?HEROES[S.hero].alloc.arm:0;
-  return Math.min(.40,a*.025+gearBonus('dr')+ridgeBonus('dr'));
+  let dr=Math.min(.40,a*.025+gearBonus('dr')+ridgeBonus('dr'));
+  // Shard of Endurance: DR ramps the longer you stay in combat, resets when you retreat
+  if(HEROES&&HEROES[S.hero].gear.charm==='mars_endure') dr=Math.min(.58,dr+Math.min(.20,(S.combatT||0)*.013));
+  return dr;
 }
 function hurt(n){
   n=(n===undefined?1:n);
+  S.combatLast=clock.elapsedTime;
   if(S.invuln>0) return;
   if(S.blurT>0&&Math.random()<.5){
     sparkle(player.position.clone().setY(1.6),0x7ab8e8,.4);
@@ -6455,6 +6738,7 @@ function animate(){
 
   if(S.mode==='play'&&player){
     const L=SIGNS[S.hero];
+    if(S.combatLast!==undefined&&t-S.combatLast<4){ S.combatT=Math.min(20,(S.combatT||0)+dt); } else S.combatT=0;
     S.cdLeft=Math.max(0,S.cdLeft-dt);
     S.cd4Left=Math.max(0,S.cd4Left-dt);
     S.cd5Left=Math.max(0,S.cd5Left-dt);
@@ -6725,7 +7009,7 @@ function animate(){
     _pvTmp.copy(player.position).sub(lastPlayerPos).divideScalar(Math.max(dt,.001));
     playerVel.lerp(_pvTmp,.35);
     lastPlayerPos.copy(player.position);
-    if(S.world==='mars'&&player) player.position.y=marsH(player.position.x,player.position.z);
+    if(S.world==='mars'&&player) player.position.y=groundH(player.position.x,player.position.z);
     {
       let big=boss||null;
       if(!big&&typeof heraldParts!=='undefined'&&heraldParts.length&&!S.heraldDone) big=heraldParts[0];
@@ -6760,14 +7044,14 @@ function animate(){
       player.visible=Math.sin(t*26)>-.4;
     } else player.visible=S.plutoT>0?false:true;
 
-    if(S.world==='mars') realmTick(dt,t);
+    if(S.world==='mars'){ if(S.zone) dungeonTick(dt,t); else realmTick(dt,t); }
     const _cgy=S.world==='mars'?player.position.y:0;
     const camTarget=new THREE.Vector3(
       player.position.x+Math.sin(camYaw)*camDist, _cgy+9.5*(camDist/13),
       player.position.z+Math.cos(camYaw)*camDist);
     camera.position.lerp(camTarget,1-Math.pow(.0015,dt));
     if(S.world==='mars'){
-      const _cmin=marsH(camera.position.x,camera.position.z)+1.6;
+      const _cmin=groundH(camera.position.x,camera.position.z)+1.6;
       if(camera.position.y<_cmin) camera.position.y=_cmin;
     }
     // camPitch tilts the aim upward so the player can look to the sky; 0 keeps the old framing exactly
@@ -7411,6 +7695,8 @@ addEventListener('keydown',e=>{
   if(S.mode==='shop'){ if(e.key==='Escape') closeShop(); return; }
   if(S.mode==='bounty'){ if(e.key==='Escape') closeBounties(); return; }
   if(e.key.toLowerCase()==='i'&&S.world==='mars'){ toggleInv(); return; }
+  if(e.key.toLowerCase()==='e'&&S.zone&&dungeon&&dungeon.nearExit){ exitZone(); return; }
+  if(e.key.toLowerCase()==='e'&&realm&&realm.nearGate&&!realm.activeNPC){ enterZone(realm.nearGate); return; }
   if(e.key.toLowerCase()==='e'&&realm&&realm.activeNPC){ interactNPC(); return; }
   if(e.code==='Space'){e.preventDefault(); usePower();}
   if(e.key==='Shift'||e.key.toLowerCase()==='f'){usePower2();}
@@ -7503,7 +7789,7 @@ document.getElementById('tabC3').onclick=()=>{sfx.ui(); S.view=2; setTabs();};
 document.getElementById('devBoss').onclick=()=>{audio(); sfx.ui(); startBoss();};
 function enterMars(){
   hide('menu');
-  S.world='mars'; S.mode='intro';
+  S.world='mars'; S.mode='intro'; S.zone=null;
   camYaw=0; camPitch=0; questProgress={};
   buildMarsRealm();
   // the realm has a real sky dome and moons far out; let the camera see that far
@@ -7512,7 +7798,7 @@ function enterMars(){
   show('realmIntro');
 }
 function exitRealm(){
-  S.world='wheel'; S.mode='menu'; realm=null; npcs=[]; realmPickups=[];
+  S.world='wheel'; S.mode='menu'; S.zone=null; realm=null; dungeon=null; npcs=[]; realmPickups=[];
   realmBounty={totems:[],patrols:[],journal:null,tower:null}; realmVigil={running:false,wave:0,alive:0,cool:0};
   sfx.stopDrone();
   hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); hide('invSheet'); hide('shopSheet'); hide('bountySheet'); setTouchUI(false);
@@ -7521,7 +7807,11 @@ function exitRealm(){
   scene.background=new THREE.Color(0x070510); scene.fog=null;
   show('menu'); setTabs();
 }
-document.getElementById('npcPrompt').addEventListener('click',()=>interactNPC());
+document.getElementById('npcPrompt').addEventListener('click',()=>{
+  if(S.zone&&dungeon&&dungeon.nearExit){ exitZone(); return; }
+  if(realm&&realm.nearGate&&!realm.activeNPC){ enterZone(realm.nearGate); return; }
+  interactNPC();
+});
 document.getElementById('roadBtn').onclick=()=>{audio(); sfx.ui(); enterMars();};
 document.getElementById('riBegin').onclick=()=>{
   hide('realmIntro'); show('hud'); setTouchUI(true); S.mode='play';

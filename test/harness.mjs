@@ -92,6 +92,12 @@ const exportSnippet = `
   closeBounties:(typeof closeBounties!=='undefined'?closeBounties:null),
   acceptBounty: (typeof acceptBounty!=='undefined'?acceptBounty:null),
   claimBounty:  (typeof claimBounty!=='undefined'?claimBounty:null),
+  enterZone:    (typeof enterZone!=='undefined'?enterZone:null),
+  exitZone:     (typeof exitZone!=='undefined'?exitZone:null),
+  spawnWrathEcho:(typeof spawnWrathEcho!=='undefined'?spawnWrathEcho:null),
+  dealDamage:   (typeof dealDamage!=='undefined'?dealDamage:null),
+  get dungeon(){return typeof dungeon!=='undefined'?dungeon:null},
+  get heroGear(){return (typeof HEROES!=='undefined'&&HEROES)?HEROES[S.hero].gear:null},
 };}catch(e){window.__hErr=e;}
 `;
 
@@ -284,6 +290,39 @@ if (H.acceptBounty && H.openBounties && H.claimBounty) {
   pass('accepted Skull Road, smashed 5 totems through the world tick, claimed it, board reset');
 } else {
   fail('bounty handles (acceptBounty/openBounties/claimBounty) were not reachable');
+}
+
+// 4e) Bronze Jar dungeon: enter the zone, fight the Wrath Echo, claim the Shard, leave.
+if (H.enterZone && H.spawnWrathEcho && H.dealDamage && H.exitZone) {
+  H.heroMars().quests.firstBlood = 'done';
+  H.heroMars().quests.voiceInBronze = 'active';
+  H.enterZone('bronzeJar');
+  if (H.S.zone !== 'bronzeJar') fail(`enterZone did not set the zone (got "${H.S.zone}")`);
+  if (!H.dungeon) fail('entering the Bronze Jar did not build the dungeon');
+  step(8, 'dungeon waves');
+  // jump straight to the boss (wave timers use real setTimeout, not the virtual clock)
+  H.spawnWrathEcho();
+  if (!H.dungeon.boss) fail('spawnWrathEcho did not create the boss');
+  if (doc.getElementById('bossWrap').style.display !== 'block') fail('boss HUD did not show');
+  dispatchKey('keydown', { key: ' ', code: 'Space' }); // a cast the Wrath Echo will mirror
+  step(110, 'boss fight + echo'); // > 1.5s so the echo resolves (fires a mirrored bolt)
+  // finish the boss
+  H.dealDamage(H.dungeon.boss, 100000, { power: true });
+  if (H.S.zone === 'bronzeJar' && H.dungeon && H.dungeon.phase !== 'done') fail(`killing the Wrath Echo did not flip the dungeon to done (phase "${H.dungeon.phase}")`);
+  // walk to the pedestal to claim the Shard of Endurance
+  H.player.position.x = 0; H.player.position.z = -9;
+  step(3, 'claim shard');
+  if (!H.heroGear || H.heroGear.charm !== 'mars_endure') fail('claiming the relic did not equip the Shard of Endurance into the charm slot');
+  if (H.heroMars().quests.voiceInBronze !== 'done') fail('completing the Bronze Jar did not finish The Voice in the Bronze');
+  if (!H.heroMars().dungeons.bronzeJar) fail('dungeon completion was not recorded');
+  // climb back out to the open realm
+  H.exitZone();
+  if (H.S.zone !== null) fail(`exitZone did not clear the zone (got "${H.S.zone}")`);
+  if (H.S.world !== 'mars') fail('exiting the dungeon should return to the open Mars realm');
+  step(6, 'back in the realm');
+  pass('entered the Bronze Jar, beat the Wrath Echo, took the Shard, and climbed back out');
+} else {
+  fail('dungeon handles (enterZone/spawnWrathEcho/exitZone) were not reachable');
 }
 
 // 5) Trigger a teaching waymark (lore site at x=14, z=-24, kind 0).

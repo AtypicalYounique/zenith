@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 10 (remaining NPCs, bounties, Eros).
+2026-06-18, Mars World build track step 11 (the Bronze Jar dungeon).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -180,9 +180,37 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
 - Deferred to later steps (need systems not built yet): Eros' "What Was Left Behind"
   mirror quest (mirror lives in the Invisible Net, step 12). The bounties are all wired
   and repeatable; tuning of rewards/positions is easy to revisit.
-- Next: step 11, the Bronze Jar dungeon. buildBronzeJar with S.zone='bronzeJar' zone
-  transition (clearScene + build, restore near the entrance on exit), fury-spirit
-  enemies, the Wrath Echo boss, the Shard of Endurance reward.
+- Done: step 11, the Bronze Jar dungeon (full signature mechanics). New `// =====
+  MARS: DUNGEON ZONES =====` block. Zone transition via S.zone: groundH(x,z) abstracts
+  the floor (marsH outside, flat bronzeFloorH inside) and now backs the player/camera
+  grounding, realmEnemyTick, spawnRealmEnemy, and the loot drops, so the shared realm-
+  enemy combat runs in either place. enterZone('bronzeJar') clearScene+buildBronzeJar;
+  exitZone rebuilds the open realm and drops the hero by the entrance. animate dispatches
+  dungeonTick when S.zone is set, else realmTick. buildBronzeJar: dark cavern (floor disc,
+  cylinder walls, domed ceiling, light shaft), the giant cracked bronze vessel with ember
+  cracks, rubble, drifting embers, a hidden Shard pedestal, and an exit stair. Combat
+  flow: TOTAL_FURY_WAVES=2 of fury-spirits (new REALM_ENEMIES.furySpirit), then the Wrath
+  Echo (dungeonBossTick: lumbers, telegraphed slams, fury adds at 66%/33% hp, and the
+  signature mirror: each player cast is recorded by markCast and echoed back ~1.5s later
+  as a colored shadow bolt). Boss uses the bossWrap HUD; on death onWrathEchoDown reveals
+  the pedestal. Walking to it calls dungeonReward: claimRelic('mars_endure'), sets
+  dungeons.bronzeJar + voiceInBronze done. New relic Shard of Endurance (charm slot);
+  damageReduction ramps DR up to +20% the longer S.combatT runs (combat timer in the play
+  loop; S.combatLast set in hurt/dealDamage/markCast), resetting on a ~4s retreat. Quest
+  chapter 2 'The Voice in the Bronze' added to MARS_QUESTS (target = entrance 120,-70) and
+  wired through Enyo (bronzeOffer/bronzeActive/bronzeLore/bronzeDone, picked by openDialog
+  state). A buildBronzeEntrance landmark sits in the open realm; dungeonGateTick shows the
+  enter prompt (E / tap) when voiceInBronze is active or the dungeon is cleared. Exit stair
+  prompt mirrors it. Harness extended: enter the zone, spawn + fight the Wrath Echo (fire a
+  power so an echo resolves over 110 frames), kill it, claim the Shard into the charm slot,
+  verify quest + dungeon flags, exit back to the realm (266 frames, no crash). Harness and
+  both gates pass. Verified by screenshot: the cavern + cracked jar, the boss with its HP
+  bar and 'remembers your every blow' beat, and the post-kill pedestal reveal.
+- Note: dungeon wave/boss pacing uses setTimeout (real timers), so the headless harness
+  jumps straight to the boss via spawnWrathEcho; in-browser the waves flow on their own.
+- Next: step 12, the Invisible Net dungeon. buildInvisibleNet (S.zone='invisibleNet'),
+  golden trip-thread stealth mechanic, the Smith's Grudge boss, the Thread of Cunning
+  reward, and Eros' 'What Was Left Behind' mirror quest (the mirror hides here).
 
 ## Where things stand
 
