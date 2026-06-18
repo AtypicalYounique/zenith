@@ -125,9 +125,11 @@
   #compass .cNpc{color:rgba(255,170,110,.95)}
   #compass .cCenter{position:absolute;left:50%;top:0;width:1px;height:34px;transform:translateX(-50%);
     background:linear-gradient(rgba(232,196,107,.55),transparent)}
-  #marksHUD{position:fixed;top:3.5rem;left:1rem;z-index:6;pointer-events:none;
+  #marksHUD{position:fixed;top:3.5rem;left:1rem;z-index:6;cursor:pointer;
     font-family:'Marcellus',serif;color:var(--gold);font-size:.86rem;letter-spacing:.08em;
-    text-shadow:0 1px 3px rgba(0,0,0,.7)}
+    text-shadow:0 1px 3px rgba(0,0,0,.7);padding:.15rem .35rem;border-radius:4px;
+    border:1px solid transparent;transition:border-color .2s}
+  #marksHUD:hover{border-color:rgba(232,196,107,.4)}
   #marksHUD .mGlyph{opacity:.85;margin-right:.15rem}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;
@@ -182,10 +184,22 @@
   .csRow .pb:disabled{opacity:.22;cursor:default}
   .csRow .pb:not(:disabled):hover{background:rgba(232,196,107,.25)}
   #charSheet .card{max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #invSheet .card{max-width:38rem;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #invSub{color:var(--mist);font-size:.82rem;letter-spacing:.14em;margin:.2rem 0 .2rem}
+  #invSub b{color:var(--gold);font-family:'Marcellus',serif}
+  .invTier{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;border:1px solid;
+    border-radius:3px;padding:.02em .35em;margin-left:.4em;opacity:.9}
+  .invBtn{font-family:'Marcellus',serif;background:none;border:1px solid rgba(232,196,107,.5);
+    color:var(--gold);border-radius:4px;padding:.22em .7em;font-size:.66rem;letter-spacing:.14em;
+    text-transform:uppercase;cursor:pointer;transition:all .2s}
+  .invBtn:hover{background:rgba(232,196,107,.16)}
+  .invBtn:disabled{opacity:.4;cursor:default;color:var(--mist);border-color:rgba(239,233,218,.25)}
   @media (pointer:coarse){
     .csRow .pb{width:44px;height:44px;font-size:1.4rem}
     #charSheet .card{padding:1.5rem 1rem;max-height:92vh}
     #charSheet .card .myth{margin:.7rem 0;font-size:.92rem}
+    #invSheet .card{padding:1.5rem 1rem;max-height:92vh}
+    .invBtn{padding:.4em 1em;font-size:.72rem}
   }
   @keyframes hpulse{0%,100%{opacity:.35}50%{opacity:.95}}
   #skillbar{position:fixed;left:50%;bottom:2.4vh;transform:translateX(-50%);
@@ -360,7 +374,7 @@
   <div id="compassMarks"></div>
   <div class="cCenter"></div>
 </div>
-<div id="marksHUD" class="hidden" title="War-Marks"><span class="mGlyph">⚔</span> <span id="marksVal">0</span></div>
+<div id="marksHUD" class="hidden" title="War-Pack (I)"><span class="mGlyph">⚔</span> <span id="marksVal">0</span></div>
 <button id="pauseBtn" class="hidden" title="pause">❚❚</button>
 
 <div id="pause" class="layer card-layer hidden">
@@ -392,6 +406,25 @@
     <div style="display:flex;gap:.8rem;justify-content:center;margin-top:1rem">
       <button class="btn" id="csRespec">Respec</button>
       <button class="btn" id="csClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="invSheet" class="layer card-layer hidden">
+  <div class="card">
+    <div class="glyph">♂</div>
+    <h2 style="font-family:'Marcellus',serif;letter-spacing:.18em">The War-Pack</h2>
+    <p id="invSub"><b id="invMarks">0</b> War-Marks · <span id="invLvl">Mars level 1</span></p>
+    <h3 class="csHd">Realm Gear</h3>
+    <div id="invGear"></div>
+    <h3 class="csHd">Relics of the Mountain</h3>
+    <div id="invRelics"></div>
+    <h3 class="csHd">Carried</h3>
+    <div id="invBag"></div>
+    <h3 class="csHd">Materials</h3>
+    <div id="invMats"></div>
+    <div style="display:flex;gap:.8rem;justify-content:center;margin-top:1rem">
+      <button class="btn" id="invClose">Close</button>
     </div>
   </div>
 </div>
@@ -1573,6 +1606,87 @@ function dropGear(id,pos){
   m.position.set(pos.x,marsH(pos.x,pos.z)+.8,pos.z);
   m.userData={gear:id, baseY:m.position.y};
   scene.add(m); realmPickups.push(m);
+}
+// ===== MARS: INVENTORY UI =====
+// Press I (or tap the War-Marks counter) to open the war-pack. It lays out the
+// realm's visible gear slots, the three universal Mountain relics beside them, the
+// carried bag (equip and remove from here), crafting materials, and the War-Marks
+// balance. Opening sets S.mode='inv', which pauses play like the character sheet;
+// closing resumes. The realm gear and relic data come from step 7 and the RELICS
+// table; chest and weapon are shown as slots awaiting their step-15 meshes.
+const MARS_TIERS={
+  worn:{name:'Worn', color:'#9aa0a6'},
+  forged:{name:'Forged', color:'#7fc08a'},
+  battle:{name:'Battle-Tested', color:'#6fa8e0'},
+  blessed:{name:'War-Blessed', color:'#b58cd8'},
+  mythic:{name:'Mythic', color:'#e8c46b'}
+};
+const MARS_GEAR_SLOTS=[
+  {slot:'helm',  label:'Helm',   live:true},
+  {slot:'chest', label:'Chest',  live:false},
+  {slot:'legs',  label:'Legs',   live:true},
+  {slot:'weapon',label:'Weapon', live:false}
+];
+const MAT_ALL=[
+  {k:'ironDust',     label:'Iron Dust'},
+  {k:'warStone',     label:'War-Stone Fragment'},
+  {k:'fangShard',    label:'Fang Shard'},
+  {k:'colossalIron', label:'Colossal Iron'},
+  {k:'dreadEssence', label:'Dread Essence'}
+];
+function tierTag(tier){
+  const ti=MARS_TIERS[tier]||MARS_TIERS.worn;
+  return '<span class="invTier" style="color:'+ti.color+';border-color:'+ti.color+'">'+ti.name+'</span>';
+}
+function toggleInv(){
+  if(S.mode==='inv'){ hide('invSheet'); S.mode='play'; sfx.ui(); return; }
+  if(S.mode!=='play'||S.world!=='mars'||!HEROES) return;
+  S.mode='inv'; renderInv(); show('invSheet'); sfx.ui();
+}
+function invEquip(slot,id){ equipMarsGear(slot,id); sfx.ui(); renderInv(); }
+function invRemove(slot){ unequipMarsGear(slot); sfx.ui(); renderInv(); }
+function renderInv(){
+  if(!HEROES) return;
+  const m=heroMars();
+  document.getElementById('invMarks').textContent=m.warMarks;
+  document.getElementById('invLvl').textContent='Mars level '+m.lvl;
+  // the realm's visible gear slots; helm and legs equip, chest and weapon await the forge
+  document.getElementById('invGear').innerHTML=MARS_GEAR_SLOTS.map(s=>{
+    if(!s.live) return '<div class="csRow pw"><span class="nm dim">'+s.label+'</span>'+
+      '<span class="ds">awaits the forge</span></div>';
+    const id=m.gear[s.slot], g=id&&MARS_GEAR[id];
+    if(g) return '<div class="csRow pw"><span class="nm">'+s.label+'</span>'+
+      '<span class="ds">'+g.name+tierTag(g.tier)+'</span>'+
+      '<button class="invBtn" data-rem="'+s.slot+'">Remove</button></div>';
+    return '<div class="csRow pw"><span class="nm dim">'+s.label+'</span>'+
+      '<span class="ds">empty</span></div>';
+  }).join('');
+  // the three universal Mountain relics, read-only (claimed from drops, not here)
+  document.getElementById('invRelics').innerHTML=['weapon','armor','charm'].map(sl=>{
+    const G=HEROES[S.hero].gear, r=(G&&G[sl])?RELIC_BY_ID[G[sl]]:null;
+    return '<div class="csRow pw"><span class="nm'+(r?'':' dim')+'">'+(r?r.name:sl)+'</span>'+
+      '<span class="ds">'+(r?r.ds:'not yet claimed')+'</span></div>';
+  }).join('');
+  // carried gear: equip an item to its slot, or mark the one already worn
+  const bag=m.inventory||[];
+  const rows=bag.map(id=>{
+    const g=MARS_GEAR[id]; if(!g) return '';
+    const worn=m.gear[g.slot]===id;
+    return '<div class="csRow pw"><span class="nm">'+g.name+'</span>'+
+      '<span class="ds">'+g.slot+tierTag(g.tier)+'</span>'+
+      (worn?'<button class="invBtn" disabled>Worn</button>'
+           :'<button class="invBtn" data-eq="'+g.slot+'" data-id="'+id+'">Equip</button>')+
+      '</div>';
+  }).filter(Boolean).join('');
+  document.getElementById('invBag').innerHTML=rows||
+    '<div class="csRow pw"><span class="nm dim">empty</span>'+
+    '<span class="ds">gear you find on the road lands here</span></div>';
+  // crafting materials, all five lines so the player learns what to gather
+  document.getElementById('invMats').innerHTML=MAT_ALL.map(mt=>{
+    const n=(m.materials&&m.materials[mt.k])||0;
+    return '<div class="csRow pw"><span class="nm'+(n?'':' dim')+'">'+mt.label+'</span>'+
+      '<span class="vl">'+n+'</span></div>';
+  }).join('');
 }
 function buildMarsRealm(){
   clearScene();
@@ -6760,6 +6874,8 @@ function buildWheel(){
 addEventListener('keydown',e=>{
   keys[e.key.toLowerCase()]=true;
   if(S.mode==='dialogue'){ if(e.key==='Escape') closeDialog(); return; }
+  if(S.mode==='inv'){ if(e.key==='Escape'||e.key.toLowerCase()==='i') toggleInv(); return; }
+  if(e.key.toLowerCase()==='i'&&S.world==='mars'){ toggleInv(); return; }
   if(e.key.toLowerCase()==='e'&&realm&&realm.activeNPC){ interactNPC(); return; }
   if(e.code==='Space'){e.preventDefault(); usePower();}
   if(e.key==='Shift'||e.key.toLowerCase()==='f'){usePower2();}
@@ -6800,6 +6916,14 @@ document.getElementById('csRidges').onclick=ev=>{
   const b=ev.target.closest('.pb'); if(b&&b.dataset.node) spendRidge(+b.dataset.ri,b.dataset.node);
 };
 document.getElementById('lvlBadge').onclick=()=>{ if(S.mode==='play'||S.mode==='char') toggleChar(); };
+document.getElementById('invClose').onclick=()=>toggleInv();
+document.getElementById('invGear').onclick=ev=>{
+  const b=ev.target.closest('.invBtn'); if(b&&b.dataset.rem) invRemove(b.dataset.rem);
+};
+document.getElementById('invBag').onclick=ev=>{
+  const b=ev.target.closest('.invBtn'); if(b&&!b.disabled&&b.dataset.eq) invEquip(b.dataset.eq,b.dataset.id);
+};
+document.getElementById('marksHUD').onclick=()=>{ if(S.mode==='play') toggleInv(); };
 loadHeroes();
 document.getElementById('beginBtn').onclick=()=>{audio(); sfx.ui(); beginPlay();};
 document.getElementById('retryBtn').onclick=()=>{
@@ -6839,7 +6963,7 @@ function enterMars(){
 function exitRealm(){
   S.world='wheel'; S.mode='menu'; realm=null; npcs=[]; realmPickups=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); hide('invSheet'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;

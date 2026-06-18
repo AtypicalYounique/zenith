@@ -225,6 +225,15 @@ step(30, 'walking');
 dispatchKey('keyup', { key: 'w', code: 'KeyW' });
 pass('walked the hero forward for 30 frames');
 
+// 4b) Open the war-pack (inventory), step paused frames, and close it.
+dispatchKey('keydown', { key: 'i', code: 'KeyI' });
+if (H.S.mode !== 'inv') fail(`pressing I did not open the inventory (mode "${H.S.mode}")`);
+if (doc.getElementById('invSheet').classList.contains('hidden')) fail('inventory opened but #invSheet is still hidden');
+step(4, 'inventory open');
+dispatchKey('keydown', { key: 'i', code: 'KeyI' });
+if (H.S.mode !== 'play') fail(`closing the inventory did not resume play (mode "${H.S.mode}")`);
+pass('opened the war-pack, rendered it, and closed it back to play');
+
 // 5) Trigger a teaching waymark (lore site at x=14, z=-24, kind 0).
 H.player.position.x = 14;
 H.player.position.z = -24;

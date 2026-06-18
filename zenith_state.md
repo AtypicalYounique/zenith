@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 7 (realm gear system).
+2026-06-17, Mars World build track step 8 (inventory UI).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -113,9 +113,23 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
 - Placement note: helm/legs sit via the body box and read best on humanoid signs;
   on creature rigs (Leo lion, Aries ram) they sit approximately. Candidate for a
   per-sign anchor polish later, like the Bloodhound mesh.
-- Next: step 8, inventory UI (press I: grid of the 5 visual realm slots + the 3
-  Mountain relic slots, inventory bag, materials, War-Marks balance; equip/unequip
-  from here).
+- Done: step 8, inventory UI. New `// ===== MARS: INVENTORY UI =====` block and a
+  #invSheet card-layer (reuses the character-sheet scroll/.csRow styling). Press I
+  (or tap the #marksHUD War-Marks counter) to open the War-Pack; sets S.mode='inv'
+  which pauses play like the char sheet, closing resumes. renderInv lays out: the
+  War-Marks balance and Mars level; Realm Gear (helm/legs live with a Remove button,
+  chest/weapon shown as "awaits the forge" until their step-15 meshes); the three
+  universal Mountain relics read-only beside them (from RELIC_BY_ID); Carried bag
+  (each owned MARS_GEAR item with an Equip button, or a disabled Worn tag if equipped
+  to its slot); and all five crafting materials with counts. Tier tags via MARS_TIERS
+  (worn gray, plus forged/battle/blessed/mythic colors ready for later tiers). Equip/
+  Remove route through the existing equipMarsGear/unequipMarsGear (mesh swap + save),
+  then re-render. Wired via delegated data-* click handlers like the char sheet; I
+  closes on Escape/I; #invSheet hidden on realm exit. marksHUD made clickable (was
+  pointer-events:none). Harness extended with an open->render->close inventory step;
+  harness and both gates pass. Verified by screenshot: clean, on-aesthetic layout.
+- Next: step 9, the shop (Forge of Ares). Place Harmonia as an NPC; buy/sell/craft
+  tabs spending War-Marks; test with Forged-tier gear purchases.
 
 ## Where things stand
 
