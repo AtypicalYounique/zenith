@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 8 (inventory UI).
+2026-06-17, Mars World build track step 9 (the shop, Forge of Ares).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -128,8 +128,31 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   closes on Escape/I; #invSheet hidden on realm exit. marksHUD made clickable (was
   pointer-events:none). Harness extended with an open->render->close inventory step;
   harness and both gates pass. Verified by screenshot: clean, on-aesthetic layout.
-- Next: step 9, the shop (Forge of Ares). Place Harmonia as an NPC; buy/sell/craft
-  tabs spending War-Marks; test with Forged-tier gear purchases.
+- Done: step 9, the shop (Forge of Ares). New `// ===== MARS: SHOP UI =====` block
+  and a #shopSheet card-layer with Buy/Sell/Craft tabs (reuses the .tab/.csRow/.invBtn
+  styling). Harmonia added as the second NPC (buildHarmonia: warmer rose-and-bronze
+  smith silhouette with a forge apron and hammer; at 16,-6 in the Landing) with a
+  static buildForge prop (anvil + glowing brazier) placed beside her via a new
+  optional spec.prop hook in spawnRealmNPCs (prop is not in the rotating NPC group).
+  Her dialogue (MARS_DIALOGUE.harmonia) has a "Show me the forge" choice; handleChoice
+  gained a c.shop action that closes the dialogue and calls openShop. The shop spends
+  HEROES[i].mars.warMarks and materials: Buy stocks Forged helm/legs (120/110) and
+  Worn helm/legs (40/35), auto-equips into an empty slot; Sell turns carried gear back
+  to marks at ~40% (unequips if worn); Craft upgrades Worn->Forged for 30 marks + 5
+  iron dust (consumes the Worn, keeps it equipped as Forged). openShop sets S.mode=
+  'shop' (pauses play like inventory), Escape/Leave closes. Forged-tier meshes pulled
+  forward from step 15: buildForgedHelm/buildForgedLegs (green-steel + green trim,
+  crest ridge / layered plates), added to MARS_GEAR; they attach via the same slot-
+  based applyMarsGear, so no placement changes. #shopSheet hidden on realm exit.
+  Harness extended: open shop, switch all three tabs, buy + auto-equip a Forged piece
+  (mesh swap), close. Harness and both gates pass. Verified by screenshot: Buy and
+  Craft tabs read cleanly, Forged tier tags green, and the Forged helm/greaves show
+  on the hero (green crest + knee guards) with "Equipped" toasts and correct marks
+  spend (360 -> 130). Consumables (potions/drafts) and reforging deferred to a later
+  step (they need their own consumable system).
+- Next: step 10, remaining NPCs. Place Alectryon (bounty master) and his side quests/
+  repeatable bounties; wire Eros' contextual appearances; extend the quest state
+  machine for the side quests.
 
 ## Where things stand
 

@@ -84,6 +84,10 @@ const exportSnippet = `
   beginPlay: (typeof beginPlay!=='undefined'?beginPlay:null),
   exitRealm: (typeof exitRealm!=='undefined'?exitRealm:null),
   marsH:     (typeof marsH!=='undefined'?marsH:null),
+  openShop:  (typeof openShop!=='undefined'?openShop:null),
+  closeShop: (typeof closeShop!=='undefined'?closeShop:null),
+  shopBuy:   (typeof shopBuy!=='undefined'?shopBuy:null),
+  heroMars:  (typeof heroMars!=='undefined'?heroMars:null),
 };}catch(e){window.__hErr=e;}
 `;
 
@@ -233,6 +237,28 @@ step(4, 'inventory open');
 dispatchKey('keydown', { key: 'i', code: 'KeyI' });
 if (H.S.mode !== 'play') fail(`closing the inventory did not resume play (mode "${H.S.mode}")`);
 pass('opened the war-pack, rendered it, and closed it back to play');
+
+// 4c) Open the Forge of Ares, switch tabs, buy a Forged piece, and close.
+if (H.openShop && H.heroMars) {
+  H.heroMars().warMarks = 500; // afford a purchase
+  H.openShop();
+  if (H.S.mode !== 'shop') fail(`openShop did not enter shop mode (mode "${H.S.mode}")`);
+  if (doc.getElementById('shopSheet').classList.contains('hidden')) fail('shop opened but #shopSheet is still hidden');
+  clickEl('shopTab_sell');   // render the sell tab
+  clickEl('shopTab_craft');  // render the craft tab
+  clickEl('shopTab_buy');    // back to buy
+  step(2, 'shop open');
+  const before = H.heroMars().warMarks;
+  H.shopBuy('forged_helm');  // buy + auto-equip path (mesh swap on the hero)
+  if (!H.heroMars().inventory.includes('forged_helm')) fail('buying a Forged helm did not add it to the bag');
+  if (H.heroMars().warMarks >= before) fail('buying did not spend War-Marks');
+  if (H.heroMars().gear.helm !== 'forged_helm') fail('an empty helm slot did not auto-equip the purchase');
+  H.closeShop();
+  if (H.S.mode !== 'play') fail(`closing the shop did not resume play (mode "${H.S.mode}")`);
+  pass('opened the Forge, switched tabs, bought + equipped a Forged piece, and closed it');
+} else {
+  fail('shop handles (openShop/heroMars) were not reachable');
+}
 
 // 5) Trigger a teaching waymark (lore site at x=14, z=-24, kind 0).
 H.player.position.x = 14;

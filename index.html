@@ -194,11 +194,17 @@
     text-transform:uppercase;cursor:pointer;transition:all .2s}
   .invBtn:hover{background:rgba(232,196,107,.16)}
   .invBtn:disabled{opacity:.4;cursor:default;color:var(--mist);border-color:rgba(239,233,218,.25)}
+  #shopSheet .card{max-width:40rem;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #shopSub{color:var(--mist);font-size:.82rem;letter-spacing:.12em;margin:.2rem 0}
+  #shopSub b{color:var(--gold);font-family:'Marcellus',serif}
+  #shopBody{margin-top:1rem}
+  #shopBody .csRow,#invSheet .csRow{max-width:420px}
+  .shopPrice{color:var(--gold);font-family:'Marcellus',serif;font-size:.82rem;white-space:nowrap;margin-left:.4em}
   @media (pointer:coarse){
     .csRow .pb{width:44px;height:44px;font-size:1.4rem}
     #charSheet .card{padding:1.5rem 1rem;max-height:92vh}
     #charSheet .card .myth{margin:.7rem 0;font-size:.92rem}
-    #invSheet .card{padding:1.5rem 1rem;max-height:92vh}
+    #invSheet .card,#shopSheet .card{padding:1.5rem 1rem;max-height:92vh}
     .invBtn{padding:.4em 1em;font-size:.72rem}
   }
   @keyframes hpulse{0%,100%{opacity:.35}50%{opacity:.95}}
@@ -425,6 +431,23 @@
     <div id="invMats"></div>
     <div style="display:flex;gap:.8rem;justify-content:center;margin-top:1rem">
       <button class="btn" id="invClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="shopSheet" class="layer card-layer hidden">
+  <div class="card">
+    <div class="glyph">⚒</div>
+    <h2 style="font-family:'Marcellus',serif;letter-spacing:.18em">Forge of Ares</h2>
+    <p id="shopSub">Harmonia tends the fire · <b id="shopMarks">0</b> War-Marks</p>
+    <div class="tabs" id="shopTabs" style="justify-content:center">
+      <button class="tab" id="shopTab_buy" data-tab="buy">Buy</button>
+      <button class="tab" id="shopTab_sell" data-tab="sell">Sell</button>
+      <button class="tab" id="shopTab_craft" data-tab="craft">Craft</button>
+    </div>
+    <div id="shopBody"></div>
+    <div style="display:flex;gap:.8rem;justify-content:center;margin-top:1rem">
+      <button class="btn" id="shopClose">Leave the Forge</button>
     </div>
   </div>
 </div>
@@ -1153,16 +1176,59 @@ function buildEnyo(){
   const tip=new THREE.Mesh(new THREE.ConeGeometry(.09,.34,8),iron); tip.position.set(.54,2.95,0); G.add(tip);
   return G;
 }
+function buildHarmonia(){
+  // The balance of war and love: a warmer rose-and-bronze silhouette than Enyo, with
+  // a forge apron and a smith's hammer at her side instead of a spear. Face on +z.
+  const G=new THREE.Group();
+  const gown=M(0x9c5a6e,{roughness:.85}), gown2=M(0x7c4456,{roughness:.85});
+  const rose=glow(0xd98f8f,.2,{metalness:.5,roughness:.45});
+  const bronze=glow(0xb87333,.24,{metalness:.65,roughness:.38});
+  const apron=M(0x4a3a32,{roughness:.7,metalness:.3});
+  const skin=M(0xd0aa88), hair=M(0x3a2018,{roughness:.85});
+  const skirt=new THREE.Mesh(new THREE.CylinderGeometry(.3,.64,1.5,14),gown); skirt.position.y=.76; G.add(skirt);
+  const apr=new THREE.Mesh(new THREE.BoxGeometry(.5,1.1,.08),apron); apr.position.set(0,.95,.3); G.add(apr);
+  const waist=new THREE.Mesh(new THREE.CylinderGeometry(.26,.3,.16,12),bronze); waist.position.y=1.54; G.add(waist);
+  const bodice=new THREE.Mesh(new THREE.CylinderGeometry(.23,.3,.62,12),gown2); bodice.position.y=1.9; G.add(bodice);
+  const bust=sphere(gown2,.17,1.5,.7,.8); bust.position.set(0,1.9,.15); G.add(bust);
+  [[-.25],[.25]].forEach(([x])=>{ const s=sphere(rose,.12,1,.7,1); s.position.set(x,2.18,0); G.add(s); });
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,.16,8),skin); neck.position.y=2.3; G.add(neck);
+  const head=sphere(skin,.22); head.position.y=2.54; G.add(head);
+  [[-.08],[.08]].forEach(([x])=>{ const eye=sphere(M(0x140a0a),.035); eye.position.set(x,2.57,.2); G.add(eye); });
+  const diadem=new THREE.Mesh(new THREE.TorusGeometry(.2,.028,8,18),rose); diadem.rotation.x=Math.PI/2; diadem.position.y=2.66; G.add(diadem);
+  const gem=sphere(bronze,.05); gem.position.set(0,2.66,.2); G.add(gem);
+  const hairTop=sphere(hair,.26,1,.95,1.05); hairTop.position.set(0,2.6,-.03); G.add(hairTop);
+  const bun=sphere(hair,.16); bun.position.set(0,2.6,-.22); G.add(bun);
+  const haft=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1.2,8),apron); haft.position.set(.5,1.05,0); haft.rotation.z=.12; G.add(haft);
+  const hammerHead=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.18),bronze); hammerHead.position.set(.55,.5,0); G.add(hammerHead);
+  return G;
+}
+function buildForge(){
+  // A static forge prop set beside Harmonia: an anvil and a glowing brazier. Not part
+  // of her NPC group, so it does not spin when she turns to face the player.
+  const G=new THREE.Group();
+  const iron=M(0x2e2620,{metalness:.5,roughness:.6});
+  const stone=M(0x4a3b34,{roughness:.9});
+  const base=new THREE.Mesh(new THREE.BoxGeometry(.5,.5,.3),stone); base.position.set(1.7,.25,.5); G.add(base);
+  const anvilTop=new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.34),iron); anvilTop.position.set(1.7,.6,.5); G.add(anvilTop);
+  const horn=new THREE.Mesh(new THREE.ConeGeometry(.12,.4,8),iron); horn.rotation.z=-Math.PI/2; horn.position.set(2.2,.6,.5); G.add(horn);
+  const stand=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,.8,8),iron); stand.position.set(-1.5,.4,.3); G.add(stand);
+  const bowl=new THREE.Mesh(new THREE.CylinderGeometry(.34,.2,.3,12),iron); bowl.position.set(-1.5,.85,.3); G.add(bowl);
+  const embers=new THREE.Mesh(new THREE.SphereGeometry(.26,10,8),glow(0xff6a2a,1.2)); embers.position.set(-1.5,.98,.3); embers.scale.y=.5; G.add(embers);
+  return G;
+}
 const MARS_NPCS=[
-  {id:'enyo', name:'Enyo', glyph:'⚔', build:buildEnyo, x:-12, z:-7, face:0, radius:6}
+  {id:'enyo',     name:'Enyo',     glyph:'⚔', build:buildEnyo,     x:-12, z:-7, face:0,        radius:6},
+  {id:'harmonia', name:'Harmonia', glyph:'⚒', build:buildHarmonia, x:16,  z:-6, face:-2.4, radius:6, prop:buildForge}
 ];
 function spawnRealmNPCs(g){
   npcs=[];
   MARS_NPCS.forEach(spec=>{
     const grp=spec.build();
-    grp.position.set(spec.x,marsH(spec.x,spec.z),spec.z); grp.rotation.y=spec.face||0;
+    const gy=marsH(spec.x,spec.z);
+    grp.position.set(spec.x,gy,spec.z); grp.rotation.y=spec.face||0;
     const label=npcLabel(spec.name); label.position.y=3.4; grp.add(label);
     g.add(grp);
+    if(spec.prop){ const p=spec.prop(); p.position.set(spec.x,gy,spec.z); p.rotation.y=spec.face||0; g.add(p); }
     npcs.push({spec,grp});
   });
 }
@@ -1217,6 +1283,17 @@ const MARS_DIALOGUE={
     questDone:{text:'Three packs broken. Good. They moved with one mind, and that means someone’s giving the orders. We’ll find who. Rest, then we go deeper.', choices:[
       {label:'(Step back)', end:true}
     ]}
+  }},
+  harmonia:{ start:'intro1', nodes:{
+    intro1:{text:'You came in off the red road with dust in your teeth. Sit a moment. I’m Harmonia. My father is war, my mother is love, and I keep the fire between them.', next:'hub'},
+    hub:{text:'This is the Forge of Ares. I mend what the road breaks and make what you haven’t earned the right to find yet. What do you need?', choices:[
+      {label:'Show me the forge.', shop:true},
+      {label:'Who are you, truly?', goto:'about'},
+      {label:'Why a forge here?', goto:'why'},
+      {label:'(Step back)', end:true}
+    ]},
+    about:{text:'The balance, they call me. The one child of Ares and Aphrodite who’s neither sword nor sigh. I don’t choose between them. I temper one with the other, the way good iron is quenched.', next:'hub'},
+    why:{text:'Every gift the spheres gave you has a shape you can hold. Boldness becomes a helm; endurance becomes a greave. Bring me marks and the metals of this place, and I’ll give your courage an edge you can see.', next:'hub'}
   }}
 };
 function openDialog(npc){
@@ -1245,6 +1322,7 @@ function renderDialogNode(id){
   else addBtn('Farewell',()=>closeDialog());
 }
 function handleChoice(c){
+  if(c.shop){ closeDialog(); openShop(); return; }
   if(c.accept) dialogAccept(c.accept);
   if(c.end){ closeDialog(); return; }
   if(c.goto){ renderDialogNode(c.goto); return; }
@@ -1555,7 +1633,12 @@ function realmPickupTick(dt,t){
 // in step 15; for now gear also drops from realm enemies.
 const MARS_GEAR={
   worn_helm:{slot:'helm', tier:'worn', name:'Worn War-Helm', build:buildWornHelm},
-  worn_legs:{slot:'legs', tier:'worn', name:'Worn Greaves',  build:buildWornLegs}
+  worn_legs:{slot:'legs', tier:'worn', name:'Worn Greaves',  build:buildWornLegs},
+  // Forged tier (green): cleaner lines and a faint metallic sheen, Harmonia's craft.
+  // The mesh placement is slot-based in applyMarsGear, so a forged piece attaches
+  // exactly like its worn counterpart; only the geometry and palette differ.
+  forged_helm:{slot:'helm', tier:'forged', name:'Forged War-Helm', build:buildForgedHelm},
+  forged_legs:{slot:'legs', tier:'forged', name:'Forged Greaves',  build:buildForgedLegs}
 };
 function buildWornHelm(){
   const G=new THREE.Group();
@@ -1572,6 +1655,29 @@ function buildWornLegs(){
     const greave=new THREE.Mesh(new THREE.CylinderGeometry(.15,.12,.55,8,1,true),iron);
     greave.position.set(x,0,.02); G.add(greave);
     const knee=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),iron); knee.position.set(x,.26,.06); G.add(knee);
+  });
+  return G;
+}
+function buildForgedHelm(){
+  const G=new THREE.Group();
+  const steel=M(0x586a52,{metalness:.55,roughness:.46});
+  const trim=glow(0x88b06a,.2,{metalness:.5,roughness:.4});
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.32,14,9,0,Math.PI*2,0,Math.PI*0.6),steel); G.add(cap);
+  const band=new THREE.Mesh(new THREE.TorusGeometry(.32,.05,8,20),trim); band.rotation.x=Math.PI/2; band.position.y=-.02; G.add(band);
+  // a raised crest ridge runs front to back: the cleaner forged silhouette
+  const crest=new THREE.Mesh(new THREE.BoxGeometry(.06,.15,.52),trim); crest.position.y=.22; G.add(crest);
+  [[-.27],[.27]].forEach(([x])=>{ const ch=new THREE.Mesh(new THREE.BoxGeometry(.05,.24,.2),steel); ch.position.set(x,-.06,.12); G.add(ch); });
+  const nasal=new THREE.Mesh(new THREE.BoxGeometry(.06,.24,.05),steel); nasal.position.set(0,-.14,.32); G.add(nasal);
+  return G;
+}
+function buildForgedLegs(){
+  const G=new THREE.Group();
+  const steel=M(0x586a52,{metalness:.55,roughness:.46});
+  const trim=glow(0x88b06a,.18,{metalness:.5,roughness:.4});
+  [[-.17],[.17]].forEach(([x])=>{
+    const greave=new THREE.Mesh(new THREE.CylinderGeometry(.16,.13,.58,10,1,true),steel); greave.position.set(x,0,.02); G.add(greave);
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(.27,.2,.16),steel); plate.position.set(x,.22,.04); G.add(plate);
+    const knee=new THREE.Mesh(new THREE.SphereGeometry(.11,10,7),trim); knee.position.set(x,.29,.08); G.add(knee);
   });
   return G;
 }
@@ -1687,6 +1793,108 @@ function renderInv(){
     return '<div class="csRow pw"><span class="nm'+(n?'':' dim')+'">'+mt.label+'</span>'+
       '<span class="vl">'+n+'</span></div>';
   }).join('');
+}
+// ===== MARS: SHOP UI =====
+// The Forge of Ares, run by Harmonia. A tabbed card (Buy, Sell, Craft) spending
+// War-Marks and crafting materials. Buy stocks Forged-tier helm and legs (and the
+// Worn pieces cheaply); Sell turns carried gear back into marks; Craft upgrades a
+// Worn piece into its Forged twin for marks plus iron dust. Opening sets
+// S.mode='shop', which pauses play like the inventory; closing resumes. All gear,
+// equip, and material plumbing reuses step 6 and step 7. Consumables (potions,
+// drafts) wait on a later step with their own system.
+const SHOP_BUY=[
+  {id:'forged_helm', price:120},
+  {id:'forged_legs', price:110},
+  {id:'worn_helm',   price:40},
+  {id:'worn_legs',   price:35}
+];
+const CRAFT_RECIPES=[
+  {from:'worn_helm', to:'forged_helm', marks:30, mats:{ironDust:5}},
+  {from:'worn_legs', to:'forged_legs', marks:30, mats:{ironDust:5}}
+];
+function sellPrice(id){ const b=SHOP_BUY.find(x=>x.id===id); return b?Math.max(8,Math.round(b.price*0.4)):12; }
+function matsLine(mats){ return Object.keys(mats).map(k=>mats[k]+' '+((MAT_INFO[k]&&MAT_INFO[k].label)||k)).join(', '); }
+function matsEnough(mats){ const M2=heroMars().materials; return Object.keys(mats).every(k=>(M2[k]||0)>=mats[k]); }
+let shopTab='buy';
+function openShop(){
+  if(!HEROES||S.world!=='mars') return;
+  S.mode='shop'; shopTab='buy'; renderShop(); show('shopSheet'); sfx.ui();
+}
+function closeShop(){ hide('shopSheet'); if(S.world==='mars') S.mode='play'; sfx.ui(); }
+function setShopTab(t){ shopTab=t; renderShop(); sfx.ui(); }
+function shopBuy(id){
+  const b=SHOP_BUY.find(x=>x.id===id); if(!b) return;
+  const m=heroMars();
+  if(m.inventory.includes(id)){ toast('You already carry that'); sfx.ui(); return; }
+  if(m.warMarks<b.price){ toast('Not enough War-Marks'); sfx.ui(); return; }
+  m.warMarks-=b.price; m.inventory.push(id);
+  const slot=MARS_GEAR[id].slot; let eq=false;
+  if(!m.gear[slot]){ equipMarsGear(slot,id); eq=true; } else saveHeroes();
+  updateMarksHUD(); sfx.collect(1); renderShop();
+  toast((eq?'Equipped: ':'Bought: ')+MARS_GEAR[id].name);
+}
+function shopSell(id){
+  const m=heroMars(); const ix=m.inventory.indexOf(id); if(ix<0) return;
+  const g=MARS_GEAR[id], p=sellPrice(id);
+  const wasEquipped=(m.gear[g.slot]===id);
+  m.inventory.splice(ix,1); m.warMarks+=p;
+  if(wasEquipped){ unequipMarsGear(g.slot); } else saveHeroes();
+  updateMarksHUD(); sfx.ui(); renderShop();
+  toast('Sold for '+p+' War-Marks');
+}
+function shopCraft(idx){
+  const r=CRAFT_RECIPES[idx]; if(!r) return;
+  const m=heroMars();
+  if(!m.inventory.includes(r.from)){ toast('You need a '+MARS_GEAR[r.from].name); sfx.ui(); return; }
+  if(m.warMarks<r.marks||!matsEnough(r.mats)){ toast('Not enough to forge'); sfx.ui(); return; }
+  m.warMarks-=r.marks;
+  Object.keys(r.mats).forEach(k=>{ m.materials[k]-=r.mats[k]; });
+  const slot=MARS_GEAR[r.to].slot, wasEquipped=(m.gear[slot]===r.from);
+  m.inventory.splice(m.inventory.indexOf(r.from),1);
+  if(!m.inventory.includes(r.to)) m.inventory.push(r.to);
+  if(wasEquipped||!m.gear[slot]) equipMarsGear(slot,r.to); else saveHeroes();
+  updateMarksHUD(); sfx.collect(1); renderShop();
+  toast('Forged: '+MARS_GEAR[r.to].name);
+}
+function renderShop(){
+  if(!HEROES) return;
+  const m=heroMars();
+  document.getElementById('shopMarks').textContent=m.warMarks;
+  ['buy','sell','craft'].forEach(t=>{
+    document.getElementById('shopTab_'+t).classList.toggle('active',shopTab===t);
+  });
+  let html='';
+  if(shopTab==='buy'){
+    html=SHOP_BUY.map(b=>{
+      const g=MARS_GEAR[b.id], have=m.inventory.includes(b.id), afford=m.warMarks>=b.price;
+      const btn=have?'<button class="invBtn" disabled>Owned</button>'
+        :'<button class="invBtn" data-buy="'+b.id+'"'+(afford?'':' disabled')+'>Buy</button>';
+      return '<div class="csRow pw"><span class="nm">'+g.name+'</span>'+
+        '<span class="ds">'+g.slot+tierTag(g.tier)+'</span>'+
+        '<span class="shopPrice">'+b.price+' ⚔</span>'+btn+'</div>';
+    }).join('');
+  } else if(shopTab==='sell'){
+    const bag=(m.inventory||[]).filter(id=>MARS_GEAR[id]);
+    html=bag.length?bag.map(id=>{
+      const g=MARS_GEAR[id], worn=m.gear[g.slot]===id;
+      return '<div class="csRow pw"><span class="nm">'+g.name+'</span>'+
+        '<span class="ds">'+g.slot+tierTag(g.tier)+(worn?' · worn now':'')+'</span>'+
+        '<span class="shopPrice">'+sellPrice(id)+' ⚔</span>'+
+        '<button class="invBtn" data-sell="'+id+'">Sell</button></div>';
+    }).join(''):'<div class="csRow pw"><span class="nm dim">nothing to sell</span>'+
+      '<span class="ds">gear you carry can be turned back into marks here</span></div>';
+  } else {
+    html=CRAFT_RECIPES.map((r,i)=>{
+      const from=MARS_GEAR[r.from], to=MARS_GEAR[r.to];
+      const own=m.inventory.includes(r.from), canPay=m.warMarks>=r.marks&&matsEnough(r.mats);
+      const ok=own&&canPay;
+      const note=!own?'need a '+from.name:(canPay?'ready to forge':'short on marks or metals');
+      return '<div class="csRow pw"><span class="nm">'+to.name+'</span>'+
+        '<span class="ds">'+from.name+' → '+to.name+'<br>'+r.marks+' ⚔ + '+matsLine(r.mats)+'<br><i style="opacity:.7">'+note+'</i></span>'+
+        '<button class="invBtn" data-craft="'+i+'"'+(ok?'':' disabled')+'>Forge</button></div>';
+    }).join('');
+  }
+  document.getElementById('shopBody').innerHTML=html;
 }
 function buildMarsRealm(){
   clearScene();
@@ -6875,6 +7083,7 @@ addEventListener('keydown',e=>{
   keys[e.key.toLowerCase()]=true;
   if(S.mode==='dialogue'){ if(e.key==='Escape') closeDialog(); return; }
   if(S.mode==='inv'){ if(e.key==='Escape'||e.key.toLowerCase()==='i') toggleInv(); return; }
+  if(S.mode==='shop'){ if(e.key==='Escape') closeShop(); return; }
   if(e.key.toLowerCase()==='i'&&S.world==='mars'){ toggleInv(); return; }
   if(e.key.toLowerCase()==='e'&&realm&&realm.activeNPC){ interactNPC(); return; }
   if(e.code==='Space'){e.preventDefault(); usePower();}
@@ -6924,6 +7133,16 @@ document.getElementById('invBag').onclick=ev=>{
   const b=ev.target.closest('.invBtn'); if(b&&!b.disabled&&b.dataset.eq) invEquip(b.dataset.eq,b.dataset.id);
 };
 document.getElementById('marksHUD').onclick=()=>{ if(S.mode==='play') toggleInv(); };
+document.getElementById('shopClose').onclick=()=>closeShop();
+document.getElementById('shopTabs').onclick=ev=>{
+  const b=ev.target.closest('[data-tab]'); if(b) setShopTab(b.dataset.tab);
+};
+document.getElementById('shopBody').onclick=ev=>{
+  const b=ev.target.closest('.invBtn'); if(!b||b.disabled) return;
+  if(b.dataset.buy) shopBuy(b.dataset.buy);
+  else if(b.dataset.sell) shopSell(b.dataset.sell);
+  else if(b.dataset.craft) shopCraft(+b.dataset.craft);
+};
 loadHeroes();
 document.getElementById('beginBtn').onclick=()=>{audio(); sfx.ui(); beginPlay();};
 document.getElementById('retryBtn').onclick=()=>{
@@ -6963,7 +7182,7 @@ function enterMars(){
 function exitRealm(){
   S.world='wheel'; S.mode='menu'; realm=null; npcs=[]; realmPickups=[];
   sfx.stopDrone();
-  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); hide('invSheet'); setTouchUI(false);
+  hide('hud'); hide('loreCard'); hide('npcDialog'); hide('npcPrompt'); hide('questTracker'); hide('compass'); hide('marksHUD'); hide('invSheet'); hide('shopSheet'); setTouchUI(false);
   clearScene();
   camera.far=500; camera.updateProjectionMatrix(); camPitch=0;
   scene.background=new THREE.Color(0x070510); scene.fog=null;
