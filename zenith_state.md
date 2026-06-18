@@ -5,7 +5,7 @@ sessions and tools. Update it as things change, not in a batch. (See CLAUDE.md
 Section 6.) No em-dashes anywhere.
 
 ## Last updated
-2026-06-17, Mars World build track step 9 (the shop, Forge of Ares).
+2026-06-17, Mars World build track step 10 (remaining NPCs, bounties, Eros).
 
 ## Mars World build track (from MARS_WORLD_DESIGN.md)
 
@@ -150,9 +150,39 @@ Each step: build, run harness, screenshots if visual, check with Ryan, commit.
   on the hero (green crest + knee guards) with "Equipped" toasts and correct marks
   spend (360 -> 130). Consumables (potions/drafts) and reforging deferred to a later
   step (they need their own consumable system).
-- Next: step 10, remaining NPCs. Place Alectryon (bounty master) and his side quests/
-  repeatable bounties; wire Eros' contextual appearances; extend the quest state
-  machine for the side quests.
+- Done: step 10, remaining NPCs + all five bounties + Eros. Quest system evolved to
+  multiple active quests: activeQuestId stays but the tracker now lists every active
+  quest plus done-and-claimable bounties (questsForTracker), the compass shows all
+  active waypoints (questsWithWaypoint), questCurrentProgress reads def.live for
+  ironHarvest, and checkLiveBounties flips live bounties to done. Two new NPCs:
+  buildAlectryon (rooster-cursed watchman with a red comb crest, on a buildScoutRock
+  pedestal at 5,-33, yOff via a new spec.yOff hook) and buildEros (small winged
+  rose-gold child at -23,5, spawned only when firstBlood is done via a new spec.when
+  hook). Both have full personality dialogue; Alectryon's "Show me the work" choice
+  fires a new c.bounties action that opens the Watch Board. New `// ===== MARS: BOUNTY
+  BOARD =====` (#bountySheet, reuses shop styling): openBounties/closeBounties (S.mode=
+  'bounty', pauses play), acceptBounty (locked->active), claimBounty (pays cost, grants
+  reward via addWarMarks + gainXP, bumps mars.bounties[id], relocks for repeat).
+  New `// ===== MARS: BOUNTY OBJECTS =====`: spawnBountyObjects places 5 skull totems,
+  3 patrol markers, the scout's journal, and a watchtower in the Proving Grounds each
+  realm build (realmBounty/realmVigil module state, reset on build and exit). bountyTick
+  (added to realmTick) fires questAddProgress on proximity when the matching bounty is
+  active: smash totems (Skull Road), mark patrols / flag turns gold (Eyes on the Edge),
+  pick up the journal which opens a rotating SCOUT_JOURNAL lore card (The Fallen Scout),
+  and Rooster's Vigil summons 3 escalating waves at the tower (startVigilWave; vigil
+  enemies flagged userData.vigil and counted down in realmEnemySlain, each cleared wave
+  = questAddProgress, 3 = done). The five MARS_QUESTS bounty defs carry objective/goal/
+  reward (and ironHarvest a cost + live fn). Harness extended: accept Skull Road, smash
+  all 5 totems through the world tick, open + claim at the Watch Board, verify relock +
+  completion count. Harness and both gates pass. Verified by screenshot: the Watch Board
+  reads cleanly (all 5 bounties, rewards, Accept), totems and the watchtower render in
+  the field, and Eros shows his label + interaction prompt only after firstBlood is done.
+- Deferred to later steps (need systems not built yet): Eros' "What Was Left Behind"
+  mirror quest (mirror lives in the Invisible Net, step 12). The bounties are all wired
+  and repeatable; tuning of rewards/positions is easy to revisit.
+- Next: step 11, the Bronze Jar dungeon. buildBronzeJar with S.zone='bronzeJar' zone
+  transition (clearScene + build, restore near the entrance on exit), fury-spirit
+  enemies, the Wrath Echo boss, the Shard of Endurance reward.
 
 ## Where things stand
 

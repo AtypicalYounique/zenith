@@ -88,6 +88,10 @@ const exportSnippet = `
   closeShop: (typeof closeShop!=='undefined'?closeShop:null),
   shopBuy:   (typeof shopBuy!=='undefined'?shopBuy:null),
   heroMars:  (typeof heroMars!=='undefined'?heroMars:null),
+  openBounties: (typeof openBounties!=='undefined'?openBounties:null),
+  closeBounties:(typeof closeBounties!=='undefined'?closeBounties:null),
+  acceptBounty: (typeof acceptBounty!=='undefined'?acceptBounty:null),
+  claimBounty:  (typeof claimBounty!=='undefined'?claimBounty:null),
 };}catch(e){window.__hErr=e;}
 `;
 
@@ -258,6 +262,28 @@ if (H.openShop && H.heroMars) {
   pass('opened the Forge, switched tabs, bought + equipped a Forged piece, and closed it');
 } else {
   fail('shop handles (openShop/heroMars) were not reachable');
+}
+
+// 4d) Bounties: accept Skull Road, smash all five totems via the world tick, claim it.
+if (H.acceptBounty && H.openBounties && H.claimBounty) {
+  H.acceptBounty('skullRoad');
+  if (H.heroMars().quests.skullRoad !== 'active') fail('accepting Skull Road did not set it active');
+  const TOTEMS = [[82,-92],[60,-130],[110,-100],[40,-120],[95,-150]];
+  for (const [x, z] of TOTEMS) { H.player.position.x = x; H.player.position.z = z; step(2, 'smash totem'); }
+  if (H.heroMars().quests.skullRoad !== 'done') fail(`smashing all totems did not complete Skull Road (state "${H.heroMars().quests.skullRoad}")`);
+  const before = H.heroMars().warMarks;
+  H.openBounties();
+  if (H.S.mode !== 'bounty') fail(`openBounties did not enter bounty mode (mode "${H.S.mode}")`);
+  if (doc.getElementById('bountySheet').classList.contains('hidden')) fail('watch board opened but #bountySheet is still hidden');
+  H.claimBounty('skullRoad');
+  if (H.heroMars().warMarks <= before) fail('claiming Skull Road did not pay War-Marks');
+  if (H.heroMars().quests.skullRoad !== 'locked') fail('claimed bounty did not relock for repeat');
+  if ((H.heroMars().bounties.skullRoad || 0) < 1) fail('claim did not record a bounty completion');
+  H.closeBounties();
+  if (H.S.mode !== 'play') fail(`closing the watch board did not resume play (mode "${H.S.mode}")`);
+  pass('accepted Skull Road, smashed 5 totems through the world tick, claimed it, board reset');
+} else {
+  fail('bounty handles (acceptBounty/openBounties/claimBounty) were not reachable');
 }
 
 // 5) Trigger a teaching waymark (lore site at x=14, z=-24, kind 0).
